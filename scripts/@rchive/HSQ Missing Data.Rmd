@@ -1,0 +1,38 @@
+---
+title: "HSQ Missing Data"
+author: "Camille Hochheimer, PhD"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r, include=FALSE}
+library(lubridate)
+library(dplyr)
+
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+#your API token
+.token <- Sys.getenv("HSQ_api")
+
+#pull report "ACTION: Needs Network Diagram Baseline"
+url <- "https://redcap.ucdenver.edu/api/"
+formData <- list("token"=.token,
+                 content='report',
+                 format='csv',
+                 report_id='99082',
+                 csvDelimiter='',
+                 rawOrLabel='label',
+                 rawOrLabelHeaders='raw',
+                 exportCheckboxLabel='false',
+                 returnFormat='json'
+)
+response <- httr::POST(url, body = formData, encode = "form")
+outcomes <- httr::content(response)
+```
+
+```{r}
+interval(outcomes$randomization_dtd, today()) %/% months(1)
+
+out2 <- outcomes %>% 
+  filter(interval(outcomes$randomization_dtd, today()) %/% months(1) > 6)
+```
+

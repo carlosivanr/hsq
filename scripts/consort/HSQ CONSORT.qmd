@@ -1,0 +1,642 @@
+---
+title: "Helpers Stay Quit: CONSORT"
+format:
+  html:
+    embed-resources: true
+  
+editor: source
+---
+
+```{r data-management}
+#| echo: false
+#| warning: false
+#| message: false
+
+# use:
+# 
+# retired no contact
+# 
+# retired ineligible/retired ineligible (email)
+# 
+# retired no interest
+# 
+# randomized discontinued (self) - this is in REDCap
+# 
+# retired declined consent
+# 
+# retired minimal contact - group this together with ineligible
+# 
+# Total participant count is total referred (Janet to confirm this is correct)
+# 
+# Use thinkific data for module completion
+# 
+# There are some people eligible for 30 day survey so need to add in that line
+```
+
+
+```{r packages}
+#| echo: false
+#| warning: false
+library(tidyverse)
+# library(ggplot2)
+library(ggconsort)
+# library(dplyr)
+# library(consort)
+library(here)
+```
+
+```{r set date}
+#| echo: false
+
+data_pull_date <- "2024-05-07"
+```
+
+```{r redcap}
+#| echo: false
+#| warning: false
+# pull in SMS dates report from HSQ SMS Survey report
+# patsurveydta contains data from redcap report id 90158
+# In redcap, this report consist of selected columns from various 
+# instruments. The primary instruments for this report include
+# study enrollment form, consent form, randomization form,
+# Baseline, 3 month, 6 month, 9 month, and 12 month surveys
+# SMS survey count, biochem, and patient dropped
+# or not participating instruments
+
+.token <- Sys.getenv("HSQ_api")
+url <- "https://redcap.ucdenver.edu/api/"
+formData <- list("token"=.token,
+    content='report',
+    format='csv',
+    report_id='90158',
+    csvDelimiter='',
+    rawOrLabel='label',
+    rawOrLabelHeaders='raw',
+    exportCheckboxLabel='false',
+    returnFormat='json'
+)
+response <- httr::POST(url, body = formData, encode = "form")
+patsurveydta <- httr::content(response)
+```
+
+
+```{r}
+#| echo: false
+
+# %%%%%%%%%%%% UNDER DEVELOPMENT %%%%%%%%%%%%%%%%%%%%%%%%
+# # Working on an algorithm that can detect which files to use for each part of the report
+# instead of having to manually change the file paths
+# # Set a directory to look for files
+# # List the files
+# # Arrange the files by date
+# # Set the ripple data
+# # Set the thinkific data
+# # Remove any old files in to the older data folder
+# 
+# consort_dir <- "Z:/Shared/DFM/HSQ_Shared/Analysis/CONSORT/CONSORT data"
+# files <- list.files(consort_dir, pattern = ".csv") 
+# 
+# files %<>%
+#   as_tibble() %>%
+#   # arrange() %>%
+#   mutate(prefix = substr(value, start = 1, stop = 10))
+# 
+# files %>%
+#   # Check if the first 10 characters have a plausible date format
+#   mutate(date_fmt = ifelse(grepl("[0-9]{4}-[0-9]{2}-[0-9]{2}", prefix), 1, 0)) %>%
+#   
+#   mutate(date = ifelse(date_fmt == 1, prefix, NA)) %>%
+#   drop_na(date) %>%
+#   mutate(date = as.Date(date)) %>%
+#   
+#   # Does it have ripple or thinkific in the name?
+#   muate(thinkific_name)
+# 
+#   # Grab the pull_date and use it as a filter in the patsurveydta data frame
+# otherwise errors may arise.
+```
+
+
+```{r ripple}
+#| echo: false
+
+# ripple data
+# ripple science is a tool for participant recruitment, tracking, and retention
+# The ripple data is exported to .csv and placed in the Z: shared drive by J. Spradley or sent via email
+# Ripple data contains a globalId (participant Id) and a statusId (recruitment status) 
+# statusId takes one of 27 different values, but only 9 values such as "Retired - Ineligible", "Retired - No interest", etc. are
+# of interest for this script and are used to filter the data
+# globalId column gets renamed to the hsqid and a statusId
+
+# Prior File Paths -------------------------------------------------------------
+# ripple <- read.csv(here("./04 DataRaw/data-for-consort_2023 0413.csv"))
+# ripple <- read.csv("Z:/Shared/DFM/HSQ_Shared/Analysis/CONSORT/CONSORT data/2023-08-02_CONSORT Data (Ripple).csv") %>% 
+# ripple <- read.csv("Z:/Shared/DFM/HSQ_Shared/Analysis/CONSORT/CONSORT data/2024-01-22_ripple.csv") %>% 
+
+
+# list files in the directory
+
+ripple <- read.csv(str_c("Z:/Shared/DFM/HSQ_Shared/Analysis/CONSORT/CONSORT data/", data_pull_date, "_ripple.csv")) %>% 
+  filter(statusId %in% c("Retired – No contact",
+                         "Retired – Ineligible",
+                         "Retired – Ineligible (email)",
+                         "Retired – No interest",
+                         "Admin review",
+                         "Inc screen – Screening scheduled",
+                         "Retired – Minimal contact",
+                         "New referral – Pending contact",
+                         ## I think one of the declined consent made it into REDCap
+                         "Retired – Declined consent"),
+           #going to get rid of one of the declined consent so these numbers match
+           globalId != "grSksbmG6yuQuASa_") %>% # may have been from a previous version CR
+  rename(hsqid = globalId)
+  
+
+# enrolled:
+# sum(
+#   ripple$statusId == "Enrolled – Pending Baseline",
+#   ripple$statusId == "Retired – Inc Baseline",
+#   ripple$statusId == "Retired – Early relapse"
+# )
+
+# randomized: 
+# sum(
+#   ripple$statusId == "Randomized – Pending HSQ Training",
+#   ripple$statusId == "Randomized – Week 1-4",
+#   ripple$statusId == "Randomized – Week 5-8",
+#   ripple$statusId == "Randomized – Week 9-12",
+#   ripple$statusId == "Randomized – Week 13-16",
+#   ripple$statusId == "Randomized – Discontinued (self)"
+# )
+```
+
+
+```{r thinkific}
+#| echo: false
+
+#thinkific data
+# Thinkific is the online course system used to deliver the hsq training modules
+# For the late April CONSORT, I had to delete a blank row in the thinkific file
+# and eventhough the name was set to 04-08-2024 I had to manually set the filter
+# to 04-23-2024 to get the script to run.
+
+
+
+# Prior File Paths -------------------------------------------------------------
+# thinkific <- read.csv("Z:/Shared/DFM/HSQ_Shared/Analysis/CONSORT/CONSORT data/2024-01-22_thinkific.csv") %>% 
+  
+# thinkific_old <- read.csv("Z:/Shared/DFM/HSQ_Shared/Analysis/CONSORT/CONSORT data/Older data/2024-01-22_thinkific.csv")
+
+# Get the HSQ Id from the patsurveydata and append to thinkific data frame ----
+#adding in patient IDs longitudinally, doesn't matter because we just want summary
+# Create a new column named hsqid of the hsqids in patsurvey data
+thinkific <- read.csv(str_c("Z:/Shared/DFM/HSQ_Shared/Analysis/CONSORT/CONSORT data/", data_pull_date, "_thinkific.csv")) %>% 
+  filter(!Email %in% c("janet.spradley@cuanschutz.edu",
+                       "timothy.connolly@cuanschutz.edu")) %>%   # Remove test records  from Tim and Janet
+  arrange(Activated.At) %>%
+  mutate(patsurveydta %>%
+           filter(arm == "1-  HSQ training - beginning of participation",
+                  enrollment_date < data_pull_date) %>%
+           select(hsqid))
+```
+
+
+```{r patdta}
+#| echo: false
+
+#add this back to the patsurveydta
+# Merge the redcap df with the thinkific df.
+# If hsqid is just added as an ordered vector, then why not just bind_cols to merge???
+# i.e. why bother making the hsqid column in thinkific???
+patdta <- patsurveydta %>% left_join(thinkific, by = "hsqid") %>% 
+  mutate(arm = case_when(arm == "1-  HSQ training - beginning of participation" ~ 
+                           "Helper intervention",
+                         arm == "2 - HSQ training - end of participation" ~ 
+                           "Standard of care"),
+         hsqid = as.character(hsqid)) %>% 
+  #get rid of the duplicate - this person started over
+  filter(is.na(patientend_reason_other)) %>%
+  #append the extra ripple data
+  bind_rows(ripple) 
+
+```
+
+
+```{r ggconsort, fig.height=14, fig.width=12, out.width="200%"}
+#| echo: false
+#| warning: false
+#| message: false
+
+#fig.height=8, fig.width=12
+
+# create exclusion variable with the following values in patdta
+#   - "Did not complete baseline"
+#   - "Early relapse"
+#   - "No consent"
+#   - "Unable to contact"
+#   - "Not interested"
+#   - "Not meeting inclusion criteria
+#   - "Other
+
+# Feed data into cohort_start() to initialize a ggconsort object
+# ggconsort works by making subsets of data, beginning with the .full input
+
+# Feed ggconsort object to cohort_define() to construct cohorts
+#   - consented made from the full data where consent_form_complete is "Complete" sourced from redcap
+#   - randomized made from consented where arm is not missing
+#   - intervention made from randomized where arm is "Helper intervention"
+#   - sms_intervention made from intervention where sms survey count is > 0 sourced from redcap, sum of sms surveys completed
+#   - no sms intervention made from intervention where sms survey count = 0
+#   - training_complete made from intervention X..Complete == 100, sourced from thinkific
+#   - training_partial made from intervention where X..Complete is > 0 but < 100
+#   - no training is made where X..Complete = 0
+#   - for each intervention and control
+#   - *_eligible_3m made where today's date minus the randomization date is greater than or equal to 90
+#     - means they have been in the study for at least 3 months
+#   - *_complete_3m, made from *_eligible_3m where 3m survey is complete
+#   - 
+
+
+hsq <-  patdta %>%
+  mutate(exclusion = dplyr::case_when(patient_consort ==
+                           "Started but did not complete baseline" |
+                           patient_consort ==
+                           "After personal information collected but never started baseline" ~ "Did not complete baseline",
+         ineligible == "Yes" ~ "Early relapse",
+         patient_consort == "Before consent" |
+                           statusId == "Retired – Declined consent" ~ "No consent",
+         statusId == "Retired – No contact"|
+                           statusId == "Retired – Minimal contact" ~ "Unable to contact",
+        
+         statusId == "Retired – No interest" ~ "Not interested",
+         statusId == "Retired – Ineligible" |
+                           statusId == "Retired – Ineligible (email)" ~ "Not meeting inclusion criteria",
+         TRUE ~ "OTHER")) %>% 
+  cohort_start("Referred for assessment of eligibility by quitline") %>%
+  cohort_define(consented = .full %>% filter(consent_form_complete == "Complete"),
+                randomized = consented %>% filter(!is.na(arm)),
+                #intervention
+                intervention = randomized %>%
+                  filter(arm == "Helper intervention"),
+                sms_intervention = intervention %>% filter(smssurvey_count>0),
+                nosms_intervention = intervention %>% filter(smssurvey_count == 0),
+                training_complete = intervention %>% filter(X..Completed == 100),
+                training_partial = intervention %>% filter(X..Completed > 0 &
+                                                             X..Completed < 100),
+                notraining = intervention %>% filter(X..Completed == 0),
+                int_eligible_3m = intervention %>% 
+                  filter(Sys.Date() - randomization_dtd >= 90),
+                int_complete_3m = int_eligible_3m %>% 
+                  filter(survey_3_month_complete == "Complete"),
+                int_eligible_6m = intervention %>% 
+                  filter(Sys.Date() - randomization_dtd >= 180),
+                int_complete_6m = intervention %>% 
+                  filter(survey_6_month_complete == "Complete"),
+                int_eligible_9m = intervention %>% 
+                  filter(Sys.Date() - randomization_dtd >= 270),
+                int_complete_9m = int_eligible_9m %>% 
+                  filter(survey_9_month_complete == "Complete"),
+                 int_eligible_12m = intervention %>% 
+                  filter(Sys.Date() - randomization_dtd >= 360),
+                int_complete_12m = int_eligible_12m %>% 
+                  filter(survey_12_month_complete == "Complete"),
+                int_withdraw = intervention %>% 
+                  filter(!is.na(patientend_dtd)),
+                
+                #control
+                control = randomized %>%
+                  filter(arm == "Standard of care"),
+                sms_control = control %>% filter(smssurvey_count > 0),
+                nosms_control = control %>% filter(smssurvey_count == 0),
+                con_eligible_3m = control %>% 
+                  filter(Sys.Date() - randomization_dtd >= 90),
+                con_complete_3m = con_eligible_3m %>% 
+                  filter(survey_3_month_complete == "Complete"),
+                con_eligible_6m = control %>% 
+                  filter(Sys.Date() - randomization_dtd >= 180),
+                con_complete_6m = con_eligible_6m %>% 
+                  filter(survey_6_month_complete == "Complete"),
+                con_eligible_9m = control %>% 
+                  filter(Sys.Date() - randomization_dtd >= 270),
+                con_complete_9m = con_eligible_9m %>% 
+                  filter(survey_9_month_complete == "Complete"),
+                 con_eligible_12m = control %>% 
+                  filter(Sys.Date() - randomization_dtd >= 360),
+                con_complete_12m = con_eligible_12m %>% 
+                  filter(survey_12_month_complete == "Complete"),
+
+                ## exclusions
+                excluded = anti_join(.full, randomized, by = "hsqid") %>% 
+                  filter(exclusion != "OTHER"),
+                excluded_nobaseline = consented %>%
+                  filter(patient_consort ==
+                           "Started but did not complete baseline" |
+                           patient_consort ==
+                           "After personal information collected but never started baseline"),
+                excluded_ineligible = consented %>%
+                  filter(ineligible == "Yes"),
+                excluded_noconsent = .full %>%
+                  filter(patient_consort == "Before consent" |
+                           statusId == "Retired – Declined consent"),
+                excluded_nocontact = .full %>% 
+                  filter(statusId == "Retired – No contact" |
+                           statusId == "Retired – Minimal contact"), # *** TBD may move "Retired – Minimal contact" from excluded_inccri to excluded_nocontact
+                excluded_interest = .full %>% 
+                  filter(statusId == "Retired – No interest"),
+                excluded_inccri = .full %>% 
+                  filter(statusId == "Retired – Ineligible" |
+                           statusId == "Retired – Ineligible (email)")
+                # excluded_other = anti_join(anti_join(excluded, excluded_nobaseline, by = "hsqid"), excluded_ineligible, by = "hsqid")
+  ) %>%
+  cohort_label(consented = "Consented",
+               randomized = "Randomized",
+               excluded = "Excluded",
+               intervention = "Allocated to helper intervention",
+               control = "Allocated to standard of care",
+               excluded_nobaseline = "Did not complete baseline and PNA",
+               excluded_ineligible = "Early relapse",
+               excluded_noconsent = "Before consent",
+               sms_intervention = "At least one response",
+               sms_control = "At least one response",
+               nosms_intervention = "No response",
+               nosms_control = "No response",
+               training_complete = "Completed training",
+               training_partial = "Partially completed training",
+               notraining = "Did not yet participate in training",
+               excluded_nocontact = "Unable to contact",
+               excluded_interest = "Not interested",
+               excluded_inccri = "Not meeting inclusion criteria",
+               int_eligible_3m = "Eligible",
+               int_complete_3m = "Complete",
+               int_eligible_6m = "Eligible",
+               int_complete_6m = "Complete",
+               
+               int_eligible_9m = "Eligible",
+               int_complete_9m = "Complete",
+               int_eligible_12m = "Eligible",
+               int_complete_12m = "Complete",
+               
+               con_eligible_3m = "Eligible",
+               con_complete_3m = "Complete",
+               con_eligible_6m = "Eligible",
+               con_complete_6m = "Complete",
+               
+               con_eligible_9m = "Eligible",
+               con_complete_9m = "Complete",
+               con_eligible_12m = "Eligible",
+               con_complete_12m = "Complete",
+               
+               int_withdraw = "Dropped out")
+
+
+study_consort <- hsq %>%
+  consort_box_add(
+    "full", 0, 50, cohort_count_adorn(hsq, .full)
+  ) %>%
+  consort_box_add(
+    "excluded", 10, 40, glue::glue(
+      '<b>{cohort_count_adorn(hsq, excluded)}</b><br>
+• {cohort_count_adorn(hsq, excluded_nocontact)}<br>
+• {cohort_count_adorn(hsq, excluded_interest)}<br>
+• {cohort_count_adorn(hsq, excluded_inccri)}<br>
+• {cohort_count_adorn(hsq, excluded_noconsent)}<br>
+• {cohort_count_adorn(hsq, excluded_nobaseline)}<br>
+• {cohort_count_adorn(hsq, excluded_ineligible)}
+')
+  ) %>%
+  consort_arrow_add(
+    end = "excluded", end_side = "left",
+    start_y = 40, start_x = 0
+  ) %>%
+  consort_box_add(
+    "randomized", 0, 30, cohort_count_adorn(hsq, randomized)
+  ) %>%
+  consort_arrow_add(
+    end = "randomized", end_side = "top", start = "full", start_side = "bottom"
+  ) %>%
+  consort_line_add(
+    start = "randomized", start_side = "bottom",
+    end_x = 0, end_y = 20
+  ) %>%
+  consort_box_add(
+    "intervention", -10, 20, glue::glue(
+      '<b>{cohort_count_adorn(hsq, intervention)}</b><br>
+      • {cohort_count_adorn(hsq, training_complete)}<br>
+      • {cohort_count_adorn(hsq, training_partial)}<br>
+      • {cohort_count_adorn(hsq, notraining)}
+      '
+    ) 
+  ) %>%
+  consort_box_add(
+    "control", 10, 20, cohort_count_adorn(hsq, control)
+  ) %>%
+  consort_arrow_add(
+    end = "intervention", end_side = "right",
+    start_x = 0, start_y = 20
+  ) %>%
+  consort_arrow_add(
+    end = "control", end_side = "left",
+    start_x = 0, start_y = 20
+  ) %>%
+  consort_box_add(
+    "intervention_fu", -20, 5, glue::glue(
+      '<b>SMS texts</b><br>
+• {cohort_count_adorn(hsq, sms_intervention)}<br>
+• {cohort_count_adorn(hsq, nosms_intervention)}<br>
+<b>3-month survey</b><br>
+• {cohort_count_adorn(hsq, int_eligible_3m)}<br>
+• {cohort_count_adorn(hsq, int_complete_3m)}<br>
+<b>6-month survey</b><br>
+• {cohort_count_adorn(hsq, int_eligible_6m)}<br>
+• {cohort_count_adorn(hsq, int_complete_6m)}<br>
+<b>9-month survey</b><br>
+• {cohort_count_adorn(hsq, int_eligible_9m)}<br>
+• {cohort_count_adorn(hsq, int_complete_9m)}<br>
+<b>12-month survey</b><br>
+• {cohort_count_adorn(hsq, int_eligible_12m)}<br>
+• {cohort_count_adorn(hsq, int_complete_12m)}
+
+')) %>%
+  consort_arrow_add(
+    start_x = -20, start_y = 20,
+    # start = "intervention", start_side = "bottom",
+    end = "intervention_fu", end_side = "top"
+  ) %>%
+  consort_box_add(
+    "intervention_withdraw", -50, 0, cohort_count_adorn(hsq, int_withdraw)
+  ) %>% 
+  consort_arrow_add(
+    end = "intervention_withdraw", end_side = "right",
+    start_y = 0, start_x = -20
+  ) %>% 
+  consort_box_add(
+    "control_fu", 20, 5, glue::glue(
+      '<b>SMS texts</b><br>
+• {cohort_count_adorn(hsq, sms_control)}<br>
+• {cohort_count_adorn(hsq, nosms_control)}<br>
+<b>3-month survey</b><br>
+• {cohort_count_adorn(hsq, con_eligible_3m)}<br>
+• {cohort_count_adorn(hsq, con_complete_3m)}<br>
+<b>6-month survey</b><br>
+• {cohort_count_adorn(hsq, con_eligible_6m)}<br>
+• {cohort_count_adorn(hsq, con_complete_6m)}<br>
+<b>9-month survey</b><br>
+• {cohort_count_adorn(hsq, con_eligible_9m)}<br>
+• {cohort_count_adorn(hsq, con_complete_9m)}<br>
+<b>12-month survey</b><br>
+• {cohort_count_adorn(hsq, con_eligible_12m)}<br>
+• {cohort_count_adorn(hsq, con_complete_12m)}
+')) %>%
+  consort_arrow_add(
+    start_x = 20, start_y = 20,
+    # start = "control", start_side = "bottom",
+    end = "control_fu", end_side = "top"
+  )
+
+
+study_consort %>%
+  ggplot() +
+  geom_consort() +
+  theme_consort(margin_h = 15, margin_v = 5) +
+  # you can include other ggplot geoms, as needed -------------
+ggtext::geom_richtext(
+  aes(x = -50, y = 35, label = "Allocation"),
+  fill = "#9bc0fc"
+) +
+  ggtext::geom_richtext(
+    aes(x = -50, y = 55, label = "Enrollment"),
+    fill = "#9bc0fc"
+  ) +
+  ggtext::geom_richtext(
+    aes(x = -50, y = 10, label = "Follow-up"),
+    fill = "#9bc0fc"
+  )
+```
+
+```{r excluded}
+#| eval: false
+#| echo: false
+### What do we want to do with the people who aren't excluded yet, but haven't yet been randomized either?
+ex <-  patdta %>% 
+  filter(is.na(randomization_dtd)) %>% 
+  mutate(exclusion = dplyr::case_when(patient_consort ==
+                           "Started but did not complete baseline" |
+                           patient_consort ==
+                           "After personal information collected but never started baseline" ~ "Did not complete baseline",
+         ineligible == "Yes" ~ "Early relapse",
+         patient_consort == "Before consent" |
+                           statusId == "Retired – Declined consent" ~ "No consent",
+         statusId == "Retired – No contact" ~ "Unable to contact",
+         statusId == "Retired – No interest" ~ "Not interested",
+         statusId == "Retired – Ineligible" |
+                           statusId == "Retired – Ineligible (email)"|
+                           statusId == "Retired – Minimal contact" ~ "Not meeting inclusion criteria",
+         TRUE ~ "OTHER"))
+
+library(gtsummary)
+
+ex %>% tbl_summary(include = exclusion)
+                # excluded_other = anti_join(anti_join(excluded, excluded_nobaseline, by = "hsqid"), excluded_ineligible, by = "hsqid")
+
+ex_other <- ex %>% filter(exclusion == "OTHER - categorize")
+
+```
+
+```{r consort}
+#| eval: false
+#| echo: false
+
+patdta2 <- patdta %>% 
+  mutate(exc1 = case_when(consent_form_complete == "Complete" & 
+                            (patient_consort == 
+                            "Started but did not complete baseline" |
+                            patient_consort ==
+                            "After personal information collected but never started baseline") ~ "Did not complete baseline and PNA",
+                          consent_form_complete == "Complete" & 
+                            ineligible == "Yes" ~ "Early relapse",
+                          patient_consort == "Before consent" ~
+                            "Before consent"),
+         sms = case_when(smssurvey_count > 0 ~ "At least one SMS response",
+                         smssurvey_count == 0 ~ "No SMS response"))
+
+
+                # #intervention
+                # intervention = randomized %>% 
+                #   filter(arm == "1-  HSQ training - beginning of participation"),
+                # sms_intervention = intervention %>% filter(smssurvey_count>0),
+                # nosms_intervention = intervention %>% filter(smssurvey_count == 0),
+                # #control
+                # control = randomized %>% 
+                #   filter(arm == "2 - HSQ training - end of participation"),
+                # sms_control = control %>% filter(smssurvey_count > 0),
+                # nosms_control = control %>% filter(smssurvey_count == 0),
+
+out <- consort::consort_plot(data = patdta2,
+             orders = c(hsqid = "Population",
+                        exc1  = "Excluded",
+                        arm = "Randomized",
+                        sms = "SMS texts"
+                          # fow1    = "Lost of Follow-up",
+                          # trialno = "Finished Followup",
+                          # fow2    = "Not evaluable for the final analysis",
+                          # trialno = "Final Analysis"
+                        ),
+             side_box = c("exc1"),
+             allocation = "arm",
+             cex = 0.9)
+plot(out)
+
+
+out <- consort::consort_plot(data = df,
+             orders = c(trialno = "Population",
+                          exc    = "Excluded",
+                          arm     = "Randomized patient",
+                          fow1    = "Lost of Follow-up",
+                          trialno = "Finished Followup",
+                          fow2    = "Not evaluable",
+                          trialno = "Final Analysis"),
+             side_box = c("exc", "fow1", "fow2"),
+             allocation = "arm",
+             labels = c("1" = "Screening", "2" = "Randomization",
+                        "5" = "Final"))
+```
+
+```{r consort2}
+#| eval: false
+#| echo: false
+
+patdta2$arm <- as.factor(patdta2$arm)
+# Dataset with only randomized participants
+patdta3 <- patdta2 %>% 
+            filter(!is.na(arm))
+
+rm(g)
+
+g <- add_box(txt = gen_text(patdta2$hsqid, 
+                            label = "Assessed for eligibility")) |>
+  add_side_box(txt = gen_text(patdta2$exc1,
+                              label = "Excluded",
+                              bullet = TRUE)) |>
+  add_box(txt = gen_text(patdta3$arm,
+                         label = "Randomized")) |>
+  add_side_box(txt = gen_text(patdta3$patientend_reason)) |>
+  add_split(txt = gen_text(patdta3$arm))
+  
+  
+plot(g)
+
+txt <- gen_text(split(df[,c("reas1", "reas2")], df$arm),
+                label = "Lost to follow-up")
+g <- add_box(g, txt = txt, just = "left")
+
+df <- df[complete.cases(df[,c("reas1", "reas2")]), ]
+txt <- gen_text(split(df$trialno, df$arm),
+                label = "Primary analysis")
+g <- add_box(g, txt = txt)
+
+g <- add_label_box(g, txt = c("1" = "Baseline",
+                              "3" = "First Stage"))
+
+plot(g)
+
+```

@@ -1,0 +1,96 @@
+---
+title: "HSQ Randomization"
+author: "Camille Hochheimer, PhD"
+format: 
+  html:
+    embed-resources: true
+editor: source
+execute:
+  echo: false
+  
+---
+
+## Randomization for testing in REDCap
+
+This should be stratified by the two race groups and quitline
+
+```{r}
+library(blockrand)
+library(tidyverse)
+library(here)
+#Block randomization, n=200 per site
+set.seed(12345)
+```
+
+Actual randomization list
+
+
+# Create additional randomization allocations
+```{r}
+# Additional allocations for Pennsylvania
+Site_1_r1 <- blockrand(200, num.levels = 2, levels=c(1,2), block.sizes= c(1:4)) %>%
+  mutate(quitline = 1, rand_race_group = 1) %>%
+  rename(arm = treatment) %>%
+  select(arm, rand_race_group, quitline)
+
+Site_1_r2 <- blockrand(200, num.levels = 2, levels=c(1,2), block.sizes= c(1:4)) %>%
+  mutate(quitline = 1, rand_race_group = 2) %>%
+  rename(arm = treatment) %>%
+  select(arm, rand_race_group, quitline)
+
+# Additional allocations for Arizona
+Site_3_r1 <- blockrand(200, num.levels = 2, levels=c(1,2), block.sizes= c(1:4)) %>%
+  mutate(quitline = 3, rand_race_group = 1) %>%
+  rename(arm = treatment) %>%
+  select(arm, rand_race_group, quitline)
+
+Site_3_r2 <- blockrand(200, num.levels = 2, levels=c(1,2), block.sizes= c(1:4)) %>%
+  mutate(quitline = 3, rand_race_group = 2) %>%
+  rename(arm = treatment) %>%
+  select(arm, rand_race_group, quitline)
+
+# Additional allocations for Michigan
+Site_9_r1 <- blockrand(200, num.levels = 2, levels=c(1,2), block.sizes= c(1:4)) %>%
+  mutate(quitline = 9, rand_race_group = 1) %>%
+  rename(arm = treatment) %>%
+  select(arm, rand_race_group, quitline)
+
+Site_9_r2 <- blockrand(200, num.levels = 2, levels=c(1,2), block.sizes= c(1:4)) %>%
+  mutate(quitline = 9, rand_race_group = 2) %>%
+  rename(arm = treatment) %>%
+  select(arm, rand_race_group, quitline)
+
+Block_Randomization2 <- rbind(Site_1_r1, Site_1_r2,
+                             Site_3_r1, Site_3_r2,
+                             Site_9_r1, Site_9_r2)
+
+```
+
+
+```{r}
+Final_Block_Randomization_addendum <- rbind(
+  Block_Randomization2)
+```
+
+```{r}
+library(gtsummary)
+Final_Block_Randomization_addendum %>%
+  tbl_strata(
+    strata = quitline,
+    .tbl_fun =
+      ~ .x %>%
+      tbl_summary(by = arm) %>%
+       modify_caption("**Treatment Arm by Randomization Race Group in each Quitline**")
+  )
+  
+```
+
+
+
+```{r}
+#Export
+write.csv(Final_Block_Randomization_addendum,here("03 Code/hsq_randomization_addendum_pa_az_mi.csv"), row.names=FALSE)
+
+write.csv(Final_Block_Randomization_addendum,"Z:/Shared/DFM/HSQ_Shared/Analysis/hsq_randomization_addendum_pa_az_mi.csv", row.names=FALSE)
+```
+

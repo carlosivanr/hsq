@@ -1,0 +1,278 @@
+---
+title: "HSQ Randomization"
+author: "Camille Hochheimer, PhD"
+format: html
+editor: visual
+---
+
+## Randomization for testing in REDCap
+
+This should be stratified by the two race groups and quitline
+
+```{r}
+library(blockrand)
+library(tidyverse)
+library(here)
+
+#Block randomization, n=200 per site
+set.seed(5499)
+
+Site_1_r1 <- blockrand(100, num.levels = 2, levels=c(1,2), block.sizes= c(1:4)) %>%
+  mutate(quitline = 1, rand_race_group = 1) %>%
+  rename(arm = treatment) %>%
+  select(arm, rand_race_group, quitline)
+
+Site_1_r2 <- blockrand(100, num.levels = 2, levels=c(1,2), block.sizes= c(1:4)) %>%
+  mutate(quitline = 1, rand_race_group = 2) %>%
+  rename(arm = treatment) %>%
+  select(arm, rand_race_group, quitline)
+
+Site_2_r1 <- blockrand(100, num.levels = 2, levels=c(1,2), block.sizes= c(1:4)) %>%
+  mutate(quitline = 2, rand_race_group = 1) %>%
+  rename(arm = treatment) %>%
+  select(arm, rand_race_group, quitline)
+
+Site_2_r2 <- blockrand(100, num.levels = 2, levels=c(1,2), block.sizes= c(1:4)) %>%
+  mutate(quitline = 2, rand_race_group = 2) %>%
+  rename(arm = treatment) %>%
+  select(arm, rand_race_group, quitline)
+
+Site_3_r1 <- blockrand(100, num.levels = 2, levels=c(1,2), block.sizes= c(1:4)) %>%
+  mutate(quitline = 3, rand_race_group = 1) %>%
+  rename(arm = treatment) %>%
+  select(arm, rand_race_group, quitline)
+
+Site_3_r2 <- blockrand(100, num.levels = 2, levels=c(1,2), block.sizes= c(1:4)) %>%
+  mutate(quitline = 3, rand_race_group = 2) %>%
+  rename(arm = treatment) %>%
+  select(arm, rand_race_group, quitline)
+
+Site_4_r1 <- blockrand(100, num.levels = 2, levels=c(1,2), block.sizes= c(1:4)) %>%
+  mutate(quitline = 4, rand_race_group = 1) %>%
+  rename(arm = treatment) %>%
+  select(arm, rand_race_group, quitline)
+
+Site_4_r2 <- blockrand(100, num.levels = 2, levels=c(1,2), block.sizes= c(1:4)) %>%
+  mutate(quitline = 4, rand_race_group = 2) %>%
+  rename(arm = treatment) %>%
+  select(arm, rand_race_group, quitline)
+
+Site_5_r1 <- blockrand(100, num.levels = 2, levels=c(1,2), block.sizes= c(1:4)) %>%
+  mutate(quitline = 5, rand_race_group = 1) %>%
+  rename(arm = treatment) %>%
+  select(arm, rand_race_group, quitline)
+
+Site_5_r2 <- blockrand(100, num.levels = 2, levels=c(1,2), block.sizes= c(1:4)) %>%
+  mutate(quitline = 5, rand_race_group = 2) %>%
+  rename(arm = treatment) %>%
+  select(arm, rand_race_group, quitline)
+
+Block_Randomization <- rbind(Site_1_r1, Site_1_r2,
+                             Site_2_r1, Site_2_r2,
+                             Site_3_r1, Site_3_r2,
+                             Site_4_r1, Site_4_r2,
+                             Site_5_r1, Site_5_r2)
+
+#Export
+write.csv(Block_Randomization,here("03 Code/hsq_randomization_test.csv"), row.names=FALSE)
+
+```
+
+Actual randomization list
+
+```{r}
+#Block randomization, n=200 per site
+set.seed(12222)
+
+Site_1_r1 <- blockrand(100, num.levels = 2, levels=c(1,2), block.sizes= c(1:4)) %>%
+  mutate(quitline = 1, rand_race_group = 1) %>%
+  rename(arm = treatment) %>%
+  select(arm, rand_race_group, quitline)
+
+Site_1_r2 <- blockrand(100, num.levels = 2, levels=c(1,2), block.sizes= c(1:4)) %>%
+  mutate(quitline = 1, rand_race_group = 2) %>%
+  rename(arm = treatment) %>%
+  select(arm, rand_race_group, quitline)
+
+Site_2_r1 <- blockrand(100, num.levels = 2, levels=c(1,2), block.sizes= c(1:4)) %>%
+  mutate(quitline = 2, rand_race_group = 1) %>%
+  rename(arm = treatment) %>%
+  select(arm, rand_race_group, quitline)
+
+Site_2_r2 <- blockrand(100, num.levels = 2, levels=c(1,2), block.sizes= c(1:4)) %>%
+  mutate(quitline = 2, rand_race_group = 2) %>%
+  rename(arm = treatment) %>%
+  select(arm, rand_race_group, quitline)
+
+Site_3_r1 <- blockrand(100, num.levels = 2, levels=c(1,2), block.sizes= c(1:4)) %>%
+  mutate(quitline = 3, rand_race_group = 1) %>%
+  rename(arm = treatment) %>%
+  select(arm, rand_race_group, quitline)
+
+Site_3_r2 <- blockrand(100, num.levels = 2, levels=c(1,2), block.sizes= c(1:4)) %>%
+  mutate(quitline = 3, rand_race_group = 2) %>%
+  rename(arm = treatment) %>%
+  select(arm, rand_race_group, quitline)
+
+Site_4_r1 <- blockrand(100, num.levels = 2, levels=c(1,2), block.sizes= c(1:4)) %>%
+  mutate(quitline = 4, rand_race_group = 1) %>%
+  rename(arm = treatment) %>%
+  select(arm, rand_race_group, quitline)
+
+Site_4_r2 <- blockrand(100, num.levels = 2, levels=c(1,2), block.sizes= c(1:4)) %>%
+  mutate(quitline = 4, rand_race_group = 2) %>%
+  rename(arm = treatment) %>%
+  select(arm, rand_race_group, quitline)
+
+Site_5_r1 <- blockrand(100, num.levels = 2, levels=c(1,2), block.sizes= c(1:4)) %>%
+  mutate(quitline = 5, rand_race_group = 1) %>%
+  rename(arm = treatment) %>%
+  select(arm, rand_race_group, quitline)
+
+Site_5_r2 <- blockrand(100, num.levels = 2, levels=c(1,2), block.sizes= c(1:4)) %>%
+  mutate(quitline = 5, rand_race_group = 2) %>%
+  rename(arm = treatment) %>%
+  select(arm, rand_race_group, quitline)
+
+Block_Randomization2 <- rbind(Site_1_r1, Site_1_r2,
+                             Site_2_r1, Site_2_r2,
+                             Site_3_r1, Site_3_r2,
+                             Site_4_r1, Site_4_r2,
+                             Site_5_r1, Site_5_r2)
+
+#Export
+write.csv(Block_Randomization2,here("03 Code/hsq_randomization_final.csv"), row.names=FALSE)
+
+write.csv(Block_Randomization2,"Z:/Shared/DFM/HSQ_Shared/Analysis/hsq_randomization_final.csv", row.names=FALSE)
+```
+
+### Creating another two for the test database
+
+```{r}
+#Block randomization, n=200 per site
+set.seed(11923)
+
+Site_1_r1 <- blockrand(100, num.levels = 2, levels=c(1,2), block.sizes= c(1:4)) %>%
+  mutate(quitline = 1, rand_race_group = 1) %>%
+  rename(arm = treatment) %>%
+  select(arm, rand_race_group, quitline)
+
+Site_1_r2 <- blockrand(100, num.levels = 2, levels=c(1,2), block.sizes= c(1:4)) %>%
+  mutate(quitline = 1, rand_race_group = 2) %>%
+  rename(arm = treatment) %>%
+  select(arm, rand_race_group, quitline)
+
+Site_2_r1 <- blockrand(100, num.levels = 2, levels=c(1,2), block.sizes= c(1:4)) %>%
+  mutate(quitline = 2, rand_race_group = 1) %>%
+  rename(arm = treatment) %>%
+  select(arm, rand_race_group, quitline)
+
+Site_2_r2 <- blockrand(100, num.levels = 2, levels=c(1,2), block.sizes= c(1:4)) %>%
+  mutate(quitline = 2, rand_race_group = 2) %>%
+  rename(arm = treatment) %>%
+  select(arm, rand_race_group, quitline)
+
+Site_3_r1 <- blockrand(100, num.levels = 2, levels=c(1,2), block.sizes= c(1:4)) %>%
+  mutate(quitline = 3, rand_race_group = 1) %>%
+  rename(arm = treatment) %>%
+  select(arm, rand_race_group, quitline)
+
+Site_3_r2 <- blockrand(100, num.levels = 2, levels=c(1,2), block.sizes= c(1:4)) %>%
+  mutate(quitline = 3, rand_race_group = 2) %>%
+  rename(arm = treatment) %>%
+  select(arm, rand_race_group, quitline)
+
+Site_4_r1 <- blockrand(100, num.levels = 2, levels=c(1,2), block.sizes= c(1:4)) %>%
+  mutate(quitline = 4, rand_race_group = 1) %>%
+  rename(arm = treatment) %>%
+  select(arm, rand_race_group, quitline)
+
+Site_4_r2 <- blockrand(100, num.levels = 2, levels=c(1,2), block.sizes= c(1:4)) %>%
+  mutate(quitline = 4, rand_race_group = 2) %>%
+  rename(arm = treatment) %>%
+  select(arm, rand_race_group, quitline)
+
+Site_5_r1 <- blockrand(100, num.levels = 2, levels=c(1,2), block.sizes= c(1:4)) %>%
+  mutate(quitline = 5, rand_race_group = 1) %>%
+  rename(arm = treatment) %>%
+  select(arm, rand_race_group, quitline)
+
+Site_5_r2 <- blockrand(100, num.levels = 2, levels=c(1,2), block.sizes= c(1:4)) %>%
+  mutate(quitline = 5, rand_race_group = 2) %>%
+  rename(arm = treatment) %>%
+  select(arm, rand_race_group, quitline)
+
+TEST_Block_Randomization <- rbind(Site_1_r1, Site_1_r2,
+                             Site_2_r1, Site_2_r2,
+                             Site_3_r1, Site_3_r2,
+                             Site_4_r1, Site_4_r2,
+                             Site_5_r1, Site_5_r2)
+
+#Export
+write.csv(TEST_Block_Randomization,here("03 Code/hsq_randomization_TEST1.csv"), row.names=FALSE)
+
+## for development
+
+set.seed(12023)
+
+Site_1_r1 <- blockrand(100, num.levels = 2, levels=c(1,2), block.sizes= c(1:4)) %>%
+  mutate(quitline = 1, rand_race_group = 1) %>%
+  rename(arm = treatment) %>%
+  select(arm, rand_race_group, quitline)
+
+Site_1_r2 <- blockrand(100, num.levels = 2, levels=c(1,2), block.sizes= c(1:4)) %>%
+  mutate(quitline = 1, rand_race_group = 2) %>%
+  rename(arm = treatment) %>%
+  select(arm, rand_race_group, quitline)
+
+Site_2_r1 <- blockrand(100, num.levels = 2, levels=c(1,2), block.sizes= c(1:4)) %>%
+  mutate(quitline = 2, rand_race_group = 1) %>%
+  rename(arm = treatment) %>%
+  select(arm, rand_race_group, quitline)
+
+Site_2_r2 <- blockrand(100, num.levels = 2, levels=c(1,2), block.sizes= c(1:4)) %>%
+  mutate(quitline = 2, rand_race_group = 2) %>%
+  rename(arm = treatment) %>%
+  select(arm, rand_race_group, quitline)
+
+Site_3_r1 <- blockrand(100, num.levels = 2, levels=c(1,2), block.sizes= c(1:4)) %>%
+  mutate(quitline = 3, rand_race_group = 1) %>%
+  rename(arm = treatment) %>%
+  select(arm, rand_race_group, quitline)
+
+Site_3_r2 <- blockrand(100, num.levels = 2, levels=c(1,2), block.sizes= c(1:4)) %>%
+  mutate(quitline = 3, rand_race_group = 2) %>%
+  rename(arm = treatment) %>%
+  select(arm, rand_race_group, quitline)
+
+Site_4_r1 <- blockrand(100, num.levels = 2, levels=c(1,2), block.sizes= c(1:4)) %>%
+  mutate(quitline = 4, rand_race_group = 1) %>%
+  rename(arm = treatment) %>%
+  select(arm, rand_race_group, quitline)
+
+Site_4_r2 <- blockrand(100, num.levels = 2, levels=c(1,2), block.sizes= c(1:4)) %>%
+  mutate(quitline = 4, rand_race_group = 2) %>%
+  rename(arm = treatment) %>%
+  select(arm, rand_race_group, quitline)
+
+Site_5_r1 <- blockrand(100, num.levels = 2, levels=c(1,2), block.sizes= c(1:4)) %>%
+  mutate(quitline = 5, rand_race_group = 1) %>%
+  rename(arm = treatment) %>%
+  select(arm, rand_race_group, quitline)
+
+Site_5_r2 <- blockrand(100, num.levels = 2, levels=c(1,2), block.sizes= c(1:4)) %>%
+  mutate(quitline = 5, rand_race_group = 2) %>%
+  rename(arm = treatment) %>%
+  select(arm, rand_race_group, quitline)
+
+TEST_Block_Randomization2 <- rbind(Site_1_r1, Site_1_r2,
+                             Site_2_r1, Site_2_r2,
+                             Site_3_r1, Site_3_r2,
+                             Site_4_r1, Site_4_r2,
+                             Site_5_r1, Site_5_r2)
+
+#Export
+write.csv(TEST_Block_Randomization2,here("03 Code/hsq_randomization_TEST2.csv"), row.names=FALSE)
+
+
+```

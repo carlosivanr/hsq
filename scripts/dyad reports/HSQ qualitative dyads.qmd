@@ -1,0 +1,274 @@
+---
+title: "Qualitative PN Dyad Matching"
+date: "`r Sys.Date()`"
+
+format: 
+  html:
+    toc: true
+---
+
+```{r, load libraries, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+# renv::load('C:/Users/rodrica2/OneDrive - The University of Colorado Denver/Documents/DFM/projects/hsq/HSQ-Reports')
+
+library(here) 
+library(tidyverse)
+# library(MatchIt)
+library(magrittr, include.only = "%<>%")
+```
+
+```{r}
+# Render the qualitative_diagrams.Rmd file
+# This file searches in Redcap for which participants need to have diagrams 
+# generated and uploaded for the qualitative sub-study, downloads their data,
+# generates and then uploads their digrams back to redcap. This is a required
+# step before proceeding with the remainder of this script.
+# n.b. may error out if there are no participants that need qualitative diagrams
+rmarkdown::render("C:/Users/rodrica2/OneDrive - The University of Colorado Denver/Documents/DFM/projects/hsq/Helpers-Stay-Quit/03 Code/qualitative_diagrams.Rmd")
+```
+
+```{r, set tokens, include=FALSE}
+# Set token for the hsq red cap project
+.token_hsq <- Sys.getenv("HSQ_api")
+
+# Set token for the sms red cap project
+.token_sms <- Sys.getenv("HSQ_sms")
+
+# Set Redcap URL
+url <- "https://redcap.ucdenver.edu/api/"
+
+# Set formData shell
+# n.b. only token and report_id need modification in subsequent lines of code
+# "token" and report_id set to blank
+formData <- list("token"='',
+                 content='report',
+                 format='csv',
+                 report_id='',
+                 csvDelimiter='',
+                 rawOrLabel='label',
+                 rawOrLabelHeaders='raw',
+                 exportCheckboxLabel='false',
+                 returnFormat='json')
+```
+
+```{r, pull hsq participant data}
+# Pull from the hsq participant management redcap project
+
+# Set the token to the appropriate redcap project
+formData$token <- .token_hsq
+
+# Set the report id to the 5-6 month report
+formData$report_id <- "100225" # 5-6 month report
+formData$report_id <- "109599" # all months report
+
+# Create response object using formData
+response <- httr::POST(url, body = formData, encode = "form")
+
+# Create data frame from response object
+hsq_eligible <- httr::content(response)
+```
+
+```{r, prep hsq data}
+# Create months of participation
+hsq_eligible %<>%
+  mutate(n_days_partic = as.numeric(difftime(Sys.Date(), randomization_dtd, units = "days"))) %>%
+  mutate(n_weeks_partic = round(n_days_partic/7)) %>%
+  select(-n_days_partic)
+  # mutate(cat_mo_partic = cut(n_mo_partic, breaks = c(5,7,9,11,13))) %>%
+  # # select(randomization_dtd, n_mo_partic, cat_mo_partic) %>%
+  # drop_na(cat_mo_partic) %>%
+  # mutate(cat_mo_partic = case_match(cat_mo_partic,
+  #                                   "(5,7]" ~ "5_6",
+  #                                   "(7,9]" ~ "7_8",
+  #                                   "(9,11]" ~ "9_10",
+  #                                   "(11,13]" ~ "11_12",
+  #                                   .ptype = factor(levels = c("5_6", "7_8", "9_10", "11_12")))) %>%
+  # mutate(cat_mo_collapsed = case_match(cat_mo_partic,
+  #                                      c("5_6", "7_8") ~ "5_8",
+  #                                      c("9_10", "11_12") ~ "9_12",
+  #                                      .ptype = factor(levels = c("5_8", "9_12"))))
+```
+
+```{r, pull sms data}
+# # Pull from the sms redcap project
+# formData$token <- .token_sms
+# 
+# # Set the report id to the sms report
+# formData$report_id <- "109577" # 5-6month data only
+# formData$report_id <- "109598" # all data
+# 
+# # Create response object using formData
+# response <- httr::POST(url, body = formData, encode = "form")
+# 
+# # Create data frame from response object
+# sms_eligible <- httr::content(response)
+```
+
+```{r, prep sms data}
+# # fill in the HSQ id then filter to obtain only the records in the hsq_eligible
+# # data
+# sms_eligible %<>%
+#   group_by(record_id) %>%
+#   fill(hsqid, .direction = "down") %>%
+#   ungroup() %>%
+#   filter(hsqid %in% hsq_eligible$hsqid)
+# 
+# # Only the last four SMS responses are needed
+# # *** is it the last four with data or the last four period?
+# sms_eligible %<>% 
+#   group_by(record_id) %>%
+#   slice_tail(n = 4) %>%
+#   ungroup()
+```
+
+```{r}
+# create a data frame of relapsers
+# relapsers defined by smoke1 in the last 7 days, which opens up the possibility
+# of some participants not meeting criteria for either relapse or abstain
+# Abstain variable will be used 2/21/2024
+
+
+# relapse <-
+#   sms_eligible %>%
+#   # filter(record_id == 32) %>%
+#   group_by(hsqid) %>%
+#   slice_tail(n = 4) %>%
+#   mutate(Relapse = ifelse(smoke1 == "Yes", 1, 0)) %>%
+#   ungroup() %>%
+#   select(hsqid, Relapse)
+```
+
+```{r}
+# create a data frame of abstainers
+# abstain <- 
+#   sms_eligible %>%
+#   # filter(record_id == 32) %>%
+#   group_by(hsqid) %>%
+#   mutate(smoke1 = ifelse(smoke1 == "No", 1, 0)) %>%
+#   summarise(Abstain = sum(smoke1)) %>%
+#   mutate(Abstain = ifelse(Abstain == 4, 1, 0)) %>%
+#   ungroup()
+
+```
+
+
+
+```{r}
+data <- 
+  hsq_eligible #%>%
+  # left_join(., relapse, by = "hsqid")%>% # leftover from when relpase variable was used to see if any participants did not meet either relapse or abstain
+  # left_join(., abstain, by = "hsqid")
+
+# Drop those for which we do not have a full set of responses
+# data %<>% drop_na(Abstain) %<>% drop_na(Relapse)
+
+# Capture one record per patient
+# data %<>%
+#   group_by(hsqid) %>%
+#   slice_head() %>%
+#   ungroup() 
+
+
+# Convert gender to a binary value and convert arm to 2 or 1
+data %<>%
+  mutate(gender_bin_m = ifelse(gender == ",Man (including transman and transmasculine)", 1, 
+                             ifelse(gender == "Woman (including transwoman and transfeminine)", 0, NA))) %>%
+  mutate(arm = ifelse(arm == "2 - HSQ training - end of participation", "2", "1")) %>%
+  rename(phone = participant_phone, rand_dtd = randomization_dtd) %>%
+  select(-gender, -record_id)
+  
+```
+
+
+```{r}
+# Now we have to decide ----------------------------------
+# 1. break apart the data data frame into separate data frames based on the
+# length of participation time and place them in a list and then apply the function 
+# to each data frame in the list
+
+# 2. Or just make a function that takes in as input a filtered data frame
+
+# match_dyads <- function(temp){
+#   temp %<>%
+#     drop_na(gender_bin_m)
+# 
+#   # Use propensity score matching to create the dyads
+#   m.out1 <- matchit(Abstain ~ arm + gender_bin_m,
+#                   data = temp,
+#                   method = "nearest",
+#                   distance = "glm",
+#                   na.action = "na.pass")
+# 
+#   # Create the dyads data
+#   m.data <- match.data(m.out1)
+# 
+#   # Arrange the dyads data set
+#   m.data %<>%
+#     arrange(subclass) %>%
+#     select(-distance, -weights, -n_days_partic, -n_mo_partic) %>%
+#     rename(dyad = subclass) %>%
+#     select(hsqid, dyad, fname, lname, gender_bin_m, arm, phone, everything())
+# 
+#   # print out the data set
+#   # m.data %>% kableExtra::kable()
+# }
+# 
+# 
+# data %>%
+#   filter(cat_mo_partic == "5_6") %>%
+#   match_dyads()
+
+```
+
+```{r}
+# data %>%
+#   group_by(cat_mo_partic) %>%
+#   group_map(~match_dyads(.))
+```
+
+```{r}
+# Break apart dataframe into sub sets by months of participation into a list
+# input <-
+#   data %>%
+#   group_by(cat_mo_partic) %>%
+#   group_map(~.x)
+```
+
+
+```{r}
+# output <-
+# input %>%
+#   map(~match_dyads(.))
+
+```
+
+
+# All months of participation 5-6 or greater
+ - Abstain algorithm currently set to last 4 SMS Smoke1 == "No"
+```{r}
+library(writexl)
+
+data %>%
+  # select(-Relapse) %>%
+  # mutate(n_mo_partic = round(n_mo_partic, 1)) %>%
+  # MM/DD/YYYY
+  mutate(rand_dtd = format(rand_dtd, "%m/%d/%Y")) %>%
+  mutate(arm = case_match(arm,
+                          "1" ~ "hsq",
+                          "2" ~ "control"),
+         # abstain = case_match(Abstain,
+         #                      1 ~ "abstinent",
+         #                      0 ~ "relapsed"),
+         gender = case_match(gender_bin_m,
+         1 ~ "male",
+         0 ~ "female"),
+         statusId = str_c("pending_contact_", arm, "_", gender)) %>%
+  select(-gender_bin_m) %>%
+  arrange(gender, desc(n_weeks_partic)) %>%
+  writexl::write_xlsx(., path = here(str_c("dyad_report_", Sys.Date(), ".xlsx")))
+
+  
+```
+
+
+

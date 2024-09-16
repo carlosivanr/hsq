@@ -1,0 +1,82 @@
+---
+title: "HSQ: Missing SMS Survey Report"
+format: html
+editor: source
+---
+
+## 
+
+```{r}
+# Source get_redcap_report function
+get_redcap_report <- function (token, report_id, labels = "raw")
+{
+    url <- "https://redcap.ucdenver.edu/api/"
+ 
+   formData <- list(token = token, content = "report", format = "csv",
+        report_id = report_id, csvDelimiter = "", rawOrLabel = labels,
+        rawOrLabelHeaders = "raw", exportCheckboxLabel = "false",
+        returnFormat = "csv")
+
+    response <- httr::POST(url, body = formData, encode = "form")
+
+    result <- httr::content(response)
+
+    return(result)
+
+}
+```
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+library(tidyverse)
+
+#pull in SMS dates report from HSQ SMS Survey report
+.sms_token <- Sys.getenv("HSQ_sms")
+sms <- get_redcap_report(token = .sms_token,
+                                   report_id = "89928")
+
+#for those who have filled out any survey, grab the last date
+sms2 <- sms %>%
+  fill(hsqid, smssurvey_count,
+       randomization_dtd) %>% 
+  mutate(sms_date = as.Date(lubridate::ymd(substr(as.character(sms_survey_timestamp),1,10)))) %>% 
+  group_by(record_id) %>% 
+  slice(which.max(sms_date)) %>% 
+  ungroup() %>% 
+  mutate(days_since = lubridate::today(tzone = "MST") - sms_date,
+         two_weeks = case_when(days_since >= 16 ~ "Yes",
+                               days_since < 16 ~ "No"),
+         last_survey = sub("\\_.*","",redcap_event_name)) %>% 
+  select(record_id, hsqid, randomization_dtd, 
+         smssurvey_count, sms_date,
+         last_survey, days_since, days_since, two_weeks)
+
+#for those who have not completed any surveys, grab their randomization date
+sms3 <- subset(sms, !(record_id %in% sms2$record_id)) %>% 
+  mutate(days_since = lubridate::today(tzone = "MST") - randomization_dtd,
+         two_weeks = case_when(days_since >= 16 ~ "Yes",
+                               days_since < 16 ~ "No"),
+         last_survey = sub("\\_.*","",redcap_event_name)) %>% 
+  select(record_id, hsqid, randomization_dtd,
+         smssurvey_count, last_survey,
+         days_since, two_weeks)
+
+#combine 
+sms4 <- full_join(sms2, sms3) %>% 
+  #if time since last survey completed is > 2 weeks then pull that person's ID
+  filter(two_weeks == "Yes") %>%
+  mutate(hsqid = as.character(hsqid)) %>% 
+  select(-record_id, -two_weeks) %>% 
+  rename(`HSQ Study ID` = hsqid,
+         `Randomization date` = randomization_dtd,
+         `SMS surveys completed` = smssurvey_count,
+         `Date last survey completed` = sms_date,
+         `Last survey` = last_survey,
+         `Days since randomization/last survey` = days_since)
+
+
+#print out the table
+flextable::flextable(sms4)
+```

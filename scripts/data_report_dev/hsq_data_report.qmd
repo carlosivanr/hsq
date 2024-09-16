@@ -1,0 +1,744 @@
+---
+title: "HSQ 0, 3, 6, 9, and 12 month survey report (under development)"
+format: html
+---
+
+```{r, load libraries, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+
+pacman::p_load(here,
+               tidyverse,
+               magrittr,
+               gtsummary,
+               Hmisc, 
+               install = FALSE)
+```
+
+```{r, set tokens, include=FALSE}
+# Set token for the hsq red cap project
+.token_hsq <- Sys.getenv("HSQ_api")
+
+# Set token for the sms red cap project
+.token_sms <- Sys.getenv("HSQ_sms")
+
+# Set Redcap URL
+url <- "https://redcap.ucdenver.edu/api/"
+
+# Set formData shell
+# n.b. only token and report_id need modification in subsequent lines of code
+# "token" and report_id set to blank
+formData <- list("token"='',
+                 content='report',
+                 format='csv',
+                 report_id='',
+                 csvDelimiter='',
+                 rawOrLabel='label',
+                 rawOrLabelHeaders='raw',
+                 exportCheckboxLabel='false',
+                 returnFormat='json')
+```
+
+```{r, 0mo data}
+# Pull from the hsq participant management redcap project
+
+# Set the token to the appropriate redcap project
+formData$token <- .token_hsq
+
+# Set the report id to the 0 month report
+formData$report_id <- "112310" # baseline
+
+# Create response object using formData
+response <- httr::POST(url, body = formData, encode = "form")
+
+# Create data frame from response object
+survey_0mo <- httr::content(response)
+
+# Cull columns
+survey_0mo %<>% 
+  select(record_id:stay_quit_method_other) %>% 
+  select(-starts_with("timestamp"))
+
+# Create a redcap_event_name column
+survey_0mo %<>%
+  mutate(event_name = "0mo")
+```
+
+```{r, 3mo data}
+# Pull from the hsq participant management redcap project
+
+# Set the report id to the 3 month report
+formData$report_id <- "112311" # baseline
+
+# Create response object using formData
+response <- httr::POST(url, body = formData, encode = "form")
+
+# Create data frame from response object
+survey_3mo <- httr::content(response)
+
+# Set the names of the columns where the 3mo suffix has been removed
+names_to_replace <- sub("_3m", "", names(survey_3mo))
+
+# Replace the names of the columns to match baseline
+colnames(survey_3mo) <- names_to_replace
+
+# Set event name
+survey_3mo %<>%
+  mutate(event_name = "3mo") %>%
+  select(-survey_3_month_complete) %>%
+  mutate(help1 = as.numeric(help1))
+```
+
+```{r, 6mo data}
+# Set the report id to the 6 month report
+formData$report_id <- "112312" # baseline
+
+# Create response object using formData
+response <- httr::POST(url, body = formData, encode = "form")
+
+# Create data frame from response object
+survey_6mo <- httr::content(response)
+
+# Set the names of the columns where the 3mo suffix has been removed
+names_to_replace <- sub("_6m", "", names(survey_6mo))
+
+# Replace the names of the columns to match baseline
+colnames(survey_6mo) <- names_to_replace
+
+# Set event name
+survey_6mo %<>%
+  mutate(event_name = "6mo") %>%
+  select(-survey_6_month_complete) %>%
+  rename(stay_quit_method_other = stayquit_other) %>%
+  mutate(help1 = as.numeric(help1))
+
+# names in 6mo data no in 3mo data
+names(survey_6mo)[!names(survey_6mo) %in% names(survey_3mo)]
+
+# contains ne* questions
+survey_6mo$zip_code_ne <- as.numeric(survey_6mo$zip_code_ne)
+```
+
+```{r, 9mo data}
+# Set the report id to the 9 month report
+formData$report_id <- "112313" # baseline
+
+# Create response object using formData
+response <- httr::POST(url, body = formData, encode = "form")
+
+# Create data frame from response object
+survey_9mo <- httr::content(response)
+
+# Set the names of the columns where the 3mo suffix has been removed
+names_to_replace <- sub("_9m", "", names(survey_9mo))
+
+# Replace the names of the columns to match baseline
+colnames(survey_9mo) <- names_to_replace
+
+# Set event name
+survey_9mo %<>%
+  mutate(event_name = "9mo") %>%
+  select(-survey_9_month_complete)
+
+# Set fu_smoke2 to numeric
+survey_9mo$fu_smoke2 <- as.numeric(survey_9mo$fu_smoke2)
+
+# names in 9mo data not in 6mo data
+names(survey_6mo)[!names(survey_6mo) %in% names(survey_9mo)]
+
+names(survey_9mo)[!names(survey_9mo) %in% names(survey_6mo)]
+```
+
+
+```{r}
+# view(
+#   bind_rows(survey_0mo, survey_3mo)
+# )
+```
+
+```{r, 12mo data}
+# Set the report id to the 12 month report
+formData$report_id <- "112314" # baseline
+
+# Create response object using formData
+response <- httr::POST(url, body = formData, encode = "form")
+
+# Create data frame from response object
+survey_12mo <- httr::content(response)
+
+# Set event name
+survey_12mo %<>%
+  select(record_id:quit_again_method_other_12m) %>%
+  mutate(event_name = "12mo") %>%
+  select(-timestamp_1_12m)
+
+# Set the names of the columns where the 3mo suffix has been removed
+names_to_replace <- sub("_12m", "", names(survey_12mo))
+
+# Replace the names of the columns to match baseline
+colnames(survey_12mo) <- names_to_replace
+```
+
+
+
+```{r}
+# # 0 - 3
+# a <- names(survey_3mo)[!names(survey_3mo) %in% names(survey_0mo)]
+# b <- names(survey_9mo)[!names(survey_9mo) %in% names(survey_0mo)]
+# c <- names(survey_12mo)[!names(survey_12mo) %in% names(survey_0mo)]
+# 
+# 
+# # 0 - 6
+# # 0 - 9 
+# # 0 - 12
+# 
+# # 3 - 6 names in 3mo that are not in 6mo
+# names(survey_3mo)[!names(survey_3mo) %in% names(survey_6mo)]
+# names(survey_6mo)[!names(survey_6mo) %in% names(survey_3mo)]
+# 
+# # 3 - 9
+# # 3mo has stay_quit and quit_again question, 9mo does not
+# names(survey_3mo)[!names(survey_3mo) %in% names(survey_9mo)]
+# names(survey_9mo)[!names(survey_9mo) %in% names(survey_3mo)]
+# 
+# # 3 -12
+# # 3mo has hc, quit_again questions, 12 mo does not
+# names(survey_3mo)[!names(survey_3mo) %in% names(survey_12mo)]
+# 
+# # 6 - 9
+# # 6mo has stay_quit and quit_again questions, 9mo does not
+# names(survey_6mo)[!names(survey_6mo) %in% names(survey_9mo)]
+# names(survey_6mo)[!names(survey_6mo) %in% names(survey_6mo)]
+# 
+# 
+# # 6 - 12
+# 
+#  
+# # 9 - 12
+```
+
+```{r}
+# Combine survey subsets
+data <- bind_rows(survey_0mo, survey_3mo, survey_6mo, survey_9mo, survey_12mo)
+
+# Check that all subsets do not have a missing event_name
+bind_rows(survey_0mo, survey_3mo, survey_6mo, survey_9mo, survey_12mo) %>%
+  filter(is.na(event_name))
+```
+
+
+```{r, set tokens, include=FALSE}
+# source(here("03 Code", "functions", "get_redcap_data.R"))
+# 
+# project_id <- 25710
+# 
+# # Get all data for a given project_id
+# data <- get_redcap_data(project_id)
+```
+
+# Demographics
+```{r}
+data %<>% 
+    mutate(arm = recode(arm, 
+                      "1-  HSQ training - beginning of participation" = "GroupB", 
+                      "2 - HSQ training - end of participation" = "GroupA")) %>%
+    mutate(arm = fct_na_value_to_level(factor(arm), level = "Missing"))
+
+
+# Recode Gender
+data %>%
+  filter(event_name == "0mo") %>%
+  select(arm, age, gender, eth) %>%
+  mutate(gender = recode(gender, 
+                        ",Man (including transman and transmasculine)" = "Man",
+                        "Woman (including transwoman and transfeminine)" = "Woman",
+                        "Prefer to self-describe (non-binary, gender queer) please specify below" = "Prefer to self_describe")) %>%
+  mutate(gender = fct_na_value_to_level(factor(gender, levels = c("Man", "Woman", "Prefer to self-describe")), level = "Missing")) %>%
+  rename(Age = age,
+         Gender = gender,
+         Hispanic = eth) %>%
+  tbl_summary(by = arm,
+              missing = "no") %>%
+  add_overall()
+```
+
+```{r}
+# Convert race vars to binary
+data %<>%
+  mutate(across(race___0:race____1, ~ ifelse(. == "Checked", 1, 0)))
+
+# Display race_vars
+data %>% 
+  filter(event_name == "0mo") %>%
+  select(arm, eth, starts_with("race___")) %>%
+  mutate(eth = fct_na_value_to_level(factor(eth), level = "Missing")) %>%
+  rename("hispanic" = eth) %>%
+  rename("black or african american" = race___0,
+           "asian" = race___1,
+           "white/caucasian" = race___2,
+           "native hawaiian or other pacific islander" = race___3,
+           "american indian, alaska native" = race___4,
+           "other" = race____66,
+           "declined" = race____1) %>%
+  tbl_summary(by = arm) %>%
+  add_overall()
+```
+
+
+# Listed below are a number of statements about how much you are consumed, engaged, or absorbed with being smoke-free. Choose the response that best describes you RIGHT NOW.
+```{r, arme1-arme5}
+data %<>%
+  mutate(event_name = factor(event_name, levels = c("0mo", "3mo", "6mo", "9mo", "12mo"))) 
+
+data %>%
+  mutate(across(arme_1:arme_5, ~factor(., levels = c("Completely disagree",
+                                                     "2",
+                                                     "3",
+                                                     "Neither agree nor disagree",
+                                                     "5",
+                                                     "6",
+                                                     "Completely agree",
+                                                     "Prefer not to answer"))),
+         across(arme_1:arme_5, ~fct_na_value_to_level(., level = "Missing"))) %>%
+  select(event_name, arme_1:arme_5) %>%
+  rename("I try to anticipate and prepare for any challenges to being smoke-free." = arme_1,
+           "The thought of being a nonsmoker still excites me." = arme_2,
+           "At this time, I am still very excited by the idea of being smoke-free." = arme_3,
+           "I spend a great deal of time thinking about becoming or staying smoke-free." = arme_4,
+           "I am carefully watching out for things that might put me at risk for smoking." = arme_5) %>%
+  tbl_summary(by = event_name)
+```
+
+
+# The next questions ask about quitting smoking. Choose the answer that best describes how sure you feel about what is being asked.
+```{r, se6-se12}
+data %>%
+  select(event_name, se6:se12) %>%
+  mutate(across(se6:se12, ~factor(., levels = c("Not at all sure I am able to",
+                                                     "Usually not sure I am able to",
+                                                     "Somewhat not sure I am able to",
+                                                     "Somewhat sure I am able to",
+                                                     "Usually sure I am able to",
+                                                     "Very sure I am able to",
+                                                     "Prefer not to answer"))),
+         across(se6:se12, ~fct_na_value_to_level(., level = "Missing"))) %>%
+  rename("Are you able to keep thinking of the pros of quitting when you feel like smoking?" = se6,
+         "Are you able to coach yourself 'I want to quit' or 'I won't give up?'" = se7,
+         "Are you able to keep thinking of the cons of smoking when you feel like smoking?" = se8,
+         "Are you able to ask the people around you to support your quit attempt?" = se9,
+         "Are you able to tell smokers you have quit smoking when you are at a party?" = se10,
+         "Are you able to anticipate situations in which it might be difficult to refrain from smoking?"= se11,
+         "Are you able to divert yourself when you feel like smoking?"= se12) %>%
+  tbl_summary(by = event_name)
+
+```
+
+# Over the last 2 weeks, how often have you been bothered by the following problems?
+```{r, phq}
+
+data %>%
+  select(event_name, phq_1:phq_4) %>%
+  mutate(across(phq_1:phq_4, ~factor(., levels = c("Not at all",
+                                                   "Several days",
+                                                   "More than half the days",
+                                                   "Nearly every day",
+                                                   "Prefer not to answer"))),
+         across(phq_1:phq_4, ~fct_na_value_to_level(., level = "Missing"))) %>%
+  rename("Feeling nervous, anxious or on edge" = phq_1,
+         "Not being able to stop or control worrying" = phq_2,
+         "Little interest or pleasure in doing things" = phq_3,
+         "Feeling down, depressed or hopeless" = phq_4) %>%
+  tbl_summary(by = event_name)
+
+
+```
+
+# The following statements describe reactions you may have to various situations. Choose the answer that best describes how true each of these statements is about how you react to various situations.
+```{r, pcs}
+data %>%
+  select(event_name, pcs_01:pcs_14) %>%
+  mutate(across(pcs_01:pcs_14, ~factor(., levels = c("Not at all true",
+                                                   "Barely true",
+                                                   "Somewhat true",
+                                                   "Completely true",
+                                                   "Prefer not to answer"))),
+         across(pcs_01:pcs_14, ~fct_na_value_to_level(., level = "Missing"))) %>%
+  rename('I am a "take charge" person.' = pcs_01,
+         "I try to let things work out on their own." = pcs_02,
+         "After attaining a goal, I look for another, more challenging one." = pcs_03,
+         "I like challenges and beating the odds." = pcs_04,
+         "I visualize my dreams and try to achieve them." = pcs_05,
+         "Despite numerous setbacks, I usually succeed in getting what I want." = pcs_06,
+         "I try to pinpoint what I need to succeed." = pcs_07,
+         "I always try to find a way to work around obstacles; nothing really stops me." = pcs_08,
+         "I often see myself failing, so I don't get my hopes up too high." = pcs_09,
+         "When I apply for a position, I imagine myself filling it." = pcs_10,
+         "I turn obstacles into positive experiences." = pcs_11,
+         "If someone tells me I can't do something, you can be sure I will do it." = pcs_12,
+         "When I experience a problem, I take the initiative in resolving it." = pcs_13,
+         "When I have a problem, I usually see myself in a no-win situation."= pcs_14) %>%
+  tbl_summary(by = event_name)
+```
+
+# The next questions describe different reasons someone would NOT smoke. Choose the answer that best describes YOUR reasons to NOT smoke.
+```{r, tsrq}
+data %>%
+  select(event_name, tsrq1:tsrq15) %>%
+  mutate(across(tsrq1:tsrq15, ~factor(., levels = c("1 - Not at all true",
+                                                     "2",
+                                                     "3",
+                                                     "Somewhat true",
+                                                     "5",
+                                                     "6",
+                                                     "7 - Very true",
+                                                     "Prefer not to answer"))),
+         across(tsrq1:tsrq15, ~fct_na_value_to_level(., level = "Missing"))) %>%
+  rename('The reason I would NOT smoke is: Because I feel that I want to take responsibility for my own health' = tsrq1,
+         "The reason I would NOT smoke is: Because I would feel guilty or ashamed of myself if I smoked." = tsrq2,
+         "The reason I would NOT smoke is: Because I personally believe it is the best thing for my health." = tsrq3,
+         "The reason I would NOT smoke is: Because others would be upset with me if I smoked." = tsrq4,
+         "The reason I would NOT smoke is: I really don't think about it." = tsrq5,
+         "The reason I would NOT smoke is: Because I have carefully thought about it and believe it is very important for many aspects of my life." = tsrq6,
+         "The reason I would NOT smoke is: Because I would feel bad about myself if I smoked." = tsrq7,
+         "The reason I would NOT smoke is: Because it is an important choice I really want to make." = tsrq8,
+         "The reason I would NOT smoke is: Because I feel pressure from others to not smoke." = tsrq9,
+         "The reason I would NOT smoke is: Because it is easier to do what I am told than think about it." = tsrq10,
+         "The reason I would NOT smoke is: Because it is consistent with my life goals." = tsrq11,
+         "The reason I would NOT smoke is: Because I want others to approve of me." = tsrq12,
+         "The reason I would NOT smoke is: Because it is very important for being as healthy as possible." = tsrq13,
+         "The reason I would NOT smoke is: Because I want others to see I can do it." = tsrq14,
+         "The reason I would NOT smoke is: I don't really know why." = tsrq15) %>%
+  tbl_summary(by = event_name)
+```
+
+# The following questions ask about how you are thinking and feeling about cigarettes and smoking. Choose the answer that best describes you.
+```{r, cd}
+data %>%
+  select(event_name, cd1:cd3,cd5:cd6, cd4) %>% # Columns rearranged to facilitate the setting of the levels by grouping them according to the levels that need to be changed
+  mutate(across(cd1:cd2, ~factor(., levels = c("Yes a lot",
+                                               "Yes a little",
+                                               "No not really",
+                                               "No not at all",
+                                               "Prefer not to answer"))),
+         across(cd3:cd6, ~factor(., levels = c("Definitely",
+                                               "Probably",
+                                               "Probably not",
+                                               "Definitely not",
+                                               "Prefer not to answer"))),
+         across(cd4, ~factor(., levels =c("Definitely a non-smoker",
+                                          "A reluctant non-smoker",
+                                          "A smoker who is not smoking",
+                                          "Prefer not to anser"))),
+         across(cd1:cd4, ~fct_na_value_to_level(., level = "Missing"))) %>%
+  select(event_name, cd1, cd2, cd3, cd4, cd5, cd6) %>% # Reorder the columns so they're
+  rename('Do you still miss cigarettes?' = cd1,
+         "Does smoking have any attraction for you now?" = cd2,
+         "Would you return to smoking if it was not harmful?" = cd3,
+         "How do you think of yourself?" = cd4,
+         "Do you think you would ever smoke again?" = cd5,
+         "Do you think that something could ever happen that would push you back to smoking?" = cd6,
+         ) %>%
+  tbl_summary(by = event_name)
+```
+
+#	Have you ever had a conversation with a tobacco user with the intention of helping them to quit? (baseline only)
+```{r, hcb}
+data %>%
+  filter(event_name == "0mo") %>%
+  select(hcb) %>%
+  mutate(hcb = factor(hcb, levels = c("No", "Yes", "Unsure")),
+         hcb = fct_na_value_to_level(hcb, level = "Missing")) %>%
+  rename("Have you ever had a conversation with a tobacco user with the intention of helping them to quit?" = hcb) %>%
+  tbl_summary()
+```
+# The following questions ask about your experiences with talking to other people about smoking and tobacco use. (not administered at baseline)
+
+```{r, help1}
+# not baseline
+data %>%
+  filter(event_name != "0mo") %>%
+  select(event_name, help1) %>%
+  mutate(event_name = factor(event_name),
+         help1 = factor(help1),
+         help1 = fct_na_value_to_level(help1, level = "Missing")) %>%
+  rename("How many times in the past month have you had a conversation with a person who smokes tobacco with the intention of helping them to quit? If none, enter 0." = help1) %>%
+  tbl_summary(by = event_name)
+```
+
+```{r, help1 factor}
+data %>%
+  filter(event_name != "0mo") %>%
+  select(event_name, help1) %>%
+  mutate(event_name = factor(event_name, levels = c("3mo", "6mo", "9mo", "12mo")),
+         help1 = factor(help1)) %>%
+  rename("How many times in the past month have you had a conversation with a person who smokes tobacco with the intention of helping them to quit? If none, enter 0." = help1) %>%
+  tbl_summary(by = event_name)
+```
+
+
+```{r, help1 mean}
+data %>%
+  filter(event_name != "0mo") %>%
+  select(event_name, help1) %>%
+  mutate(event_name = factor(event_name, levels = c("3mo", "6mo", "9mo", "12mo"))) %>%
+  rename("How many times in the past month have you had a conversation with a person who smokes tobacco with the intention of helping them to quit? If none, enter 0." = help1) %>%
+  tbl_summary(by = event_name,
+              statistic = list(all_continuous() ~ "{mean} ({sd})"))
+```
+
+# What prevented you from having any conversations about quitting? (Check all that apply.)	
+```{r, hc_no}
+data %>%
+  filter(event_name != "0mo",
+         help1 == 0) %>% # Filter out baseline/0mo since this question was not administered at that time point
+  select(event_name, hc_no___0:hc_no____66) %>%
+  mutate(across(hc_no___0:hc_no____66, ~ ifelse(. == "Checked", 1, 0))) %>% # Convert the checked/unchecked responses to 1s and 0s
+  mutate(event_name = factor(event_name, levels = c("3mo", "6mo", "9mo", "12mo"))) %>%
+  rename("Did not have an opportunity" = hc_no___0,
+         "Did not feel confident" = hc_no___1,
+         "Was not interested" = hc_no___2,
+         "Did not think it would make a difference" = hc_no___3,
+         "Other" = hc_no____66) %>%
+  tbl_summary(by = event_name)
+```
+
+
+# Please specify other reason that prevented you from having any conversations about quitting:
+## 3mo
+```{r}
+data %>%
+  filter(event_name == "3mo") %>% # Filter out baseline/0mo since this question was not administered at that time point
+  select(hc_no_other) %>%
+  drop_na(hc_no_other) %>%
+  tbl_summary() %>%
+  modify_column_hide("stat_0") 
+```
+
+## 6mo
+```{r}
+data %>%
+  filter(event_name == "6mo") %>% # Filter out baseline/0mo since this question was not administered at that time point
+  select(hc_no_other) %>%
+  drop_na(hc_no_other) %>%
+  tbl_summary() %>%
+  modify_column_hide("stat_0") 
+```
+
+## 9mo
+```{r}
+data %>%
+  filter(event_name == "9mo") %>% # Filter out baseline/0mo since this question was not administered at that time point
+  select(hc_no_other) %>%
+  drop_na(hc_no_other) %>%
+  tbl_summary() %>%
+  modify_column_hide("stat_0") 
+```
+
+```{r}
+# No data available as of 04/23/2024
+# data %>%
+#   filter(event_name == "12mo") %>% # Filter out baseline/0mo since this question was not administered at that time point
+#   select(hc_no_other) %>%
+#   drop_na(hc_no_other) %>%
+#   tbl_summary() %>%
+#   modify_column_hide("stat_0") 
+```
+
+
+# What motivated you to have conversations about quitting? (Check all that apply.)
+```{r hc_yes}
+# Subset to those that indicated they had a helping conversation over the past month
+data %>%
+  filter(event_name != "0mo",
+         help1 > 0) %>% # Filter out baseline/0mo since this question was not administered at that time point
+  select(event_name, hc_yes___0:hc_yes____66) %>%
+  mutate(across(hc_yes___0:hc_yes____66, ~ ifelse(. == "Checked", 1, 0))) %>% # Convert the checked/unchecked responses to 1s and 0s
+  mutate(event_name = factor(event_name, levels = c("3mo", "6mo", "9mo", "12mo"))) %>%
+  rename("Person who smokes was someone you knew" = hc_yes___0,
+         "Person who smokes indicated a desire to quit tobacco" = hc_yes___1,
+         "Smoking was taking place at your home/in your car/at work" = hc_yes___2,
+         "Person who smokes was violating a law/ordinance/posted prohibition" = hc_yes___3,
+         "Cigarette smoke was bothering you/someone else"= hc_yes___4,
+         "Cigarette smoke was bothering a child, pet, etc." = hc_yes___5,
+         "Person who smokes displayed health problems related to tobacco" = hc_yes___6,
+         "You had wanted to practice your skills" = hc_yes___7,
+         "It's part of your job to help people quit smoking" = hc_yes___8,
+         "Person who smokes was referred to you for assistance" = hc_yes___9,
+         "I want to help myself stay quit" = hc_yes___10,
+         "I want to have fewer smokers around me" = hc_yes___11,
+         "Other" = hc_yes____66) %>%
+  tbl_summary(by = event_name)
+```
+
+## 3mo
+```{r hc_yes_other 3mo}
+data %>%
+  filter(event_name == "3mo") %>% # Filter out baseline/0mo since this question was not administered at that time point
+  select(hc_yes_other) %>%
+  drop_na(hc_yes_other) %>%
+  tbl_summary() %>%
+  modify_column_hide("stat_0")
+```
+
+## 6mo
+```{r hc_yes_other 6mo}
+data %>%
+  filter(event_name == "6mo") %>% # Filter out baseline/0mo since this question was not administered at that time point
+  select(hc_yes_other) %>%
+  drop_na(hc_yes_other) %>%
+  tbl_summary() %>%
+  modify_column_hide("stat_0")
+```
+
+## 9mo
+```{r hc_yes_other 9mo}
+data %>%
+  filter(event_name == "9mo") %>% # Filter out baseline/0mo since this question was not administered at that time point
+  select(hc_yes_other) %>%
+  drop_na(hc_yes_other) %>%
+  tbl_summary() %>%
+  modify_column_hide("stat_0")
+```
+
+```{r hc_yes_other 12mo}
+# data %>%
+#   filter(event_name == "12mo") %>% # Filter out baseline/0mo since this question was not administered at that time point
+#   select(hc_yes_other) %>%
+#   drop_na(hc_yes_other) %>%
+#   tbl_summary() %>%
+#   modify_column_hide("stat_0")
+```
+
+#  In your conversations, how often did you assess current interest in quitting?
+```{r aware}
+data %>%
+  filter(event_name != "0mo") %>% # Filter out baseline/0mo since this question was not administered at that time point
+  select(event_name, aware) %>%
+  mutate(event_name = factor(event_name, levels = c("3mo", "6mo", "9mo", "12mo")),
+         aware = factor(aware, levels = c("Never", "Sometimes", "Often", "Always", "Prefer Not to Answer")),
+         aware = fct_na_value_to_level(aware, level = "Missing")) %>%
+  rename("In your conversations, how often did you assess current interest in quitting?" = aware) %>%
+  tbl_summary(by = event_name)
+```
+
+# In your conversations, how often did you identify the reasons why the person was thinking of quitting?
+```{r understand}
+data %>%
+  filter(event_name != "0mo") %>% # Filter out baseline/0mo since this question was not administered at that time point
+  select(event_name, understand) %>%
+  mutate(event_name = factor(event_name, levels = c("3mo", "6mo", "9mo", "12mo")),
+         understand = factor(understand, levels = c("Never", "Sometimes", "Often", "Always", "Prefer Not to Answer")),
+         understand = fct_na_value_to_level(understand, level = "Missing")) %>%
+  rename("In your conversations, how often did you identify the reasons why the person was thinking of quitting?" = understand) %>%
+  tbl_summary(by = event_name)
+```
+
+
+# In your conversations, how often did you offer suggestions for treatment or resources?
+```{r helping}
+data %>%
+  filter(event_name != "0mo") %>% # Filter out baseline/0mo since this question was not administered at that time point
+  select(event_name, helping) %>%
+  mutate(event_name = factor(event_name, levels = c("3mo", "6mo", "9mo", "12mo")),
+         helping = factor(helping, levels = c("Never", "Sometimes", "Often", "Always", "Prefer Not to Answer")),
+         helping = fct_na_value_to_level(helping, level = "Missing")) %>%
+  rename("In your conversations, how often did you offer suggestions for treatment or resources?" = helping) %>%
+  tbl_summary(by = event_name)
+```
+
+
+# How often did you follow up with a person you talked to at a later time?
+```{r relating}
+data %>%
+  filter(event_name != "0mo") %>% # Filter out baseline/0mo since this question was not administered at that time point
+  select(event_name, relating) %>%
+  mutate(event_name = factor(event_name, levels = c("3mo", "6mo", "9mo", "12mo")),
+         relating = factor(relating, levels = c("Never", "Sometimes", "Often", "Always", "Prefer Not to Answer")),
+         relating = fct_na_value_to_level(relating, level = "Missing")) %>%
+  rename("How often did you follow up with a person you talked to at a later time?" = relating) %>%
+  tbl_summary(by = event_name)
+```
+
+# How often did you discuss use of medications or nicotine replacement therapy?
+```{r meds}
+data %>%
+  filter(event_name != "0mo") %>% # Filter out baseline/0mo since this question was not administered at that time point
+  select(event_name, meds) %>%
+  mutate(event_name = factor(event_name, levels = c("3mo", "6mo", "9mo", "12mo")),
+         meds = factor(meds, levels = c("Never", "Sometimes", "Often", "Always", "Prefer Not to Answer")),
+         meds = fct_na_value_to_level(meds, level = "Missing")) %>%
+  rename("How often did you discuss use of medications or nicotine replacement therapy?" = meds) %>%
+  tbl_summary(by = event_name)
+```
+
+
+# With whom have you had conversations about quitting smoking since first participating in the Stay Quit study? (Check all that apply.)
+```{r hc1}
+data %>%
+  filter(event_name != "0mo") %>% # Filter out baseline/0mo since this question was not administered at that time point
+  select(event_name, hc1___1:hc1____66) %>%
+  mutate(across(hc1___1:hc1____66, ~ ifelse(. == "Checked", 1, 0))) %>% # Convert the checked/unchecked responses to 1s and 0s
+  mutate(event_name = factor(event_name, levels = c("3mo", "6mo", "9mo", "12mo"))) %>%
+  rename("Spouse/Partner" = hc1___1,
+         "Family member (biological or by relationship)" = hc1___2,
+         "Someone from your work or school" = hc1___3,
+         "Someone from church or other organization"= hc1___4,
+         "Neighbor" = hc1___5,
+         "Someone known through someone else" = hc1___6,
+         "Other" = hc1____66) %>%
+  tbl_summary(by = event_name)
+```
+
+## 3mo
+```{r hc1_other 3mo}
+data %>%
+  filter(event_name == "3mo") %>% # Filter out baseline/0mo since this question was not administered at that time point
+  select(hc1_other) %>%
+  drop_na(hc1_other) %>%
+  tbl_summary() %>%
+  modify_column_hide("stat_0")
+```
+
+## 6mo
+```{r hc1_other 6mo}
+data %>%
+  filter(event_name == "6mo") %>% # Filter out baseline/0mo since this question was not administered at that time point
+  select(hc1_other) %>%
+  drop_na(hc1_other) %>%
+  tbl_summary() %>%
+  modify_column_hide("stat_0")
+```
+
+## 9mo
+```{r hc1_other 9mo}
+data %>%
+  filter(event_name == "9mo") %>% # Filter out baseline/0mo since this question was not administered at that time point
+  select(hc1_other) %>%
+  drop_na(hc1_other) %>%
+  tbl_summary() %>%
+  modify_column_hide("stat_0")
+```
+
+<!-- ## 12mo -->
+<!-- ```{r hc1_other 12mo} -->
+<!-- data %>% -->
+<!--   filter(event_name == "12mo") %>% # Filter out baseline/0mo since this question was not administered at that time point -->
+<!--   select(hc1_other) %>% -->
+<!--   drop_na(hc1_other) %>% -->
+<!--   tbl_summary() %>% -->
+<!--   modify_column_hide("stat_0") -->
+<!-- ``` -->
+
+# When having these conversations, how often were you satisfied with the interaction?
+```{r hc2}
+data %>%
+  filter(event_name != "0mo",
+         help1 > 0)
+  # select(event_name, help1) %>%
+  # mutate(event_name = factor(event_name),
+  #        help1 = factor(help1),
+  #        help1 = fct_na_value_to_level(help1, level = "Missing")) %>%
+  # rename("How many times in the past month have you had a conversation with a person who smokes tobacco with the intention of helping them to quit? If none, enter 0." = help1) %>%
+  # tbl_summary(by = event_name)
+```
+
+

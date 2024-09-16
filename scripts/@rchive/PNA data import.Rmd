@@ -1,0 +1,257 @@
+---
+title: "Network Diagrams using REDCap data"
+author: "Camille Hochheimer, PhD"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+library(egor)
+library(here)
+library(tidyverse)
+library(purrr)
+library(network)
+library(redcapAPI)
+library(ggplot2)
+library(RDCOMClient)
+library(REDCapR)
+
+#token for patient-level REDCap
+rccon <- redcapConnection(url = "https://redcap.ucdenver.edu/api/", 
+                          token = Sys.getenv("HSQ_PNA_test2_api"))
+# new token is "HSQ_PNA_test2_api"
+
+
+```
+
+
+```{r upload-PNA}
+pna <- as_tibble(exportReports(rcon = rccon,
+                               report_id = "78905",
+                               factors = TRUE,
+                               labels = TRUE)) %>% 
+       rowwise() %>% 
+#get rid of people who didn't name an alter or any alter-alter ties
+       filter(sum(is.na(across(2:26))) == 0 & 
+                sum(is.na(across(352:651)), na.rm = TRUE) == 0) 
+
+```
+
+
+```{r egor-setup}
+et <- onefile_to_egor(egos = pna,
+                      ID.vars = list(ego = "study_id"),
+ # Name of Variable with the first alter attribute
+                      attr.start.col = "altgender_a1",
+ # Name of variable with last alter attribute
+                      attr.end.col = "altquitnow_a25", 
+ # Number of maximum alters that were named by participants
+                      max.alters = 25, 
+ # Name of first alter-alter variable
+                      aa.first.var = "m1_2") 
+
+alter_filter2 <- 
+  et %>% 
+  as_tibble() %>% 
+  arrange(.egoID) %>% 
+  select(alter1:alter25) %>% 
+  mutate(across(.fns = ~ !is.na(.))) %>% 
+  as.data.frame() %>% 
+  tidyr::pivot_longer(cols = everything()) %>% 
+  pull(value)
+
+e2 <- 
+  et %>% 
+  activate(alter) %>% 
+  filter(alter_filter2) %>% 
+  activate(aatie) %>% 
+  filter(weight != "")
+
+#add alter names to the alter data
+e2$alter$aname <- c(t(e2$ego[,2:26]))
+
+# summary(e2)
+
+```
+
+```{r ego-graph}
+#need to multiply size var so it shows up
+
+
+
+e2$alter$close <- ifelse(e2$alter$altclose_a == "Not close at all", 1,
+                         ifelse(e2$alter$altclose_a == "A little close", 2,
+                                ifelse(e2$alter$altclose_a == "Somewhat close", 3,
+                                       ifelse(e2$alter$altclose_a == "Quite close", 4, 5))))*100
+
+e2$aatie$weight2 <- ifelse(e2$aatie$weight == "Not at all likely", 0.01,
+                           ifelse(e2$aatie$weight == "Somewhat likely", 1, 2))
+
+size_vec <- 1:5
+scaled <- seq(0.75,2,length = 5) #1 + ((2-1) * (size_vec - min(size_vec) ) / (  max(size_vec) - min(size_vec) ) )
+
+
+```
+
+
+```{r plot-upload-loop}
+
+records <- as.vector(pna$study_id)
+
+
+for(i in seq_along(records)){
+  #create a temporary png file
+  SimplePlot.file <- tempfile(pattern = paste0("networkdiagram_ID", records[i], "_"),
+                              fileext = ".png")
+  png(filename = SimplePlot.file, width = 1300, height = 700, units = "px",
+      pointsize = 24)
+  #plot network diagram
+  plot_ego_graphs(e2, 
+                ego_no = i,
+                vertex_label_var = "aname",
+                vertex_size_var = "close",
+                vertex_color_var = "altsmoke_a",
+                vertex_color_palette = "Topo Colors",
+                edge_width_var = "weight2",
+                vertex_zoom = 2,
+                vertex_color_legend_label = "Smoker")
+  legend("bottomleft",legend=c("Not close at all", "A little close", 
+                               "Somewhat close", "Quite close", "Very close"), 
+         pt.cex= scaled,col='black',pch=21, pt.bg='black', bty = "n", 
+         title = "How close to you")
+  dev.off()
+  #upload to REDCap
+  REDCapR::redcap_upload_file_oneshot(file_name = SimplePlot.file,
+                                      record = records[i],
+                                      field = "network_diagram",
+                                      redcap_uri = "https://redcap.ucdenver.edu/api/",
+                                      token = Sys.getenv("HSQ_PNA_test2_api"))
+  unlink(SimplePlot.file)
+  
+}
+
+
+
+```
+
+
+```{r create-diagram, eval=FALSE}
+i <- match("48", e2$ego$.egoID)
+
+myfilename <- paste0(here(), "/03 Code/networkdiagram_ID", pna$study_id[i], ".png", sep = "")
+
+png(filename = myfilename, 
+    width = 1300, height = 700, units = "px",
+    pointsize = 24)
+plot_ego_graphs(e2, 
+                ego_no = i,
+                vertex_label_var = "aname",
+                vertex_size_var = "close",
+                vertex_color_var = "altsmoke_a",
+                vertex_color_palette = "Topo Colors",
+                edge_width_var = "weight2",
+                vertex_zoom = 2,
+                vertex_color_legend_label = "Smoker")
+legend("bottomleft",legend=c("Not close at all", "A little close", "Somewhat close", "Quite close", "Very close"), pt.cex= scaled,col='black',pch=21, pt.bg='black', bty = "n", title = "How close to you")
+dev.off()
+
+
+```
+
+# old code
+
+```{r upload-image, eval=FALSE}
+records <- pna$study_id
+
+uri <- "https://redcap.ucdenver.edu/api/"
+token <- Sys.getenv("HSQ_PNA_test_api")
+field <- "network_diagram"
+
+
+REDCapR::redcap_upload_file_oneshot(file_name = myfilename,
+                                    record = as.numeric(pna$study_id[i]),
+                                    field = field,
+                                    redcap_uri = uri,
+                                    token = token)
+```
+
+```{r send-email, eval=FALSE}
+# Create a temporary file path for the image that we will attach to our email
+SimplePlot.file <- tempfile(fileext = ".png")
+png(filename = SimplePlot.file, width = 1300, height = 700, units = "px", 
+    pointsize = 24)
+# for(i in 1:length(e2$ego$alter1)){
+i <- match("48", e2$ego$.egoID)
+plot_ego_graphs(e2, 
+                ego_no = i,
+                vertex_label_var = "aname",
+                vertex_size_var = "close",
+                vertex_color_var = "altsmoke_a",
+                vertex_color_palette = "Topo Colors",
+                edge_width_var = "weight2",
+                vertex_zoom = 2,
+                vertex_color_legend_label = "Smoker")
+legend("bottomleft",legend=c("Not close at all", "A little close", "Somewhat close", "Quite close", "Very close"), pt.cex= scaled,col='black',pch=21, pt.bg='black', bty = "n", title = "How close to you")
+  
+# }  
+dev.off()
+
+# Save the ggplot we just created as an image with the temporary file path
+# ggsave(file = SimplePlot.file,
+#         device = "png", width = 4, height = 4)
+# Create an Outlook object, a new email, and set the parameters.
+Outlook <- RDCOMClient::COMCreate("Outlook.Application")
+Email <- Outlook$CreateItem(0)
+# Email[["From"]] <- "stayquit.study@cuanschutz.edu"
+Email[["To"]] <- "camille.hochheimer@cuanschutz.edu"
+Email[["subject"]] <- "Your Network"
+# Some text before we insert our plot
+Body <- "<p>Here is an example of what the PNA output would look like.</p>"
+
+# First add the temporary file as an attachment.
+Email[["Attachments"]]$Add(SimplePlot.file)
+# Refer to the attachment with a cid
+# "basename" returns the file name without the directory.
+SimplePlot.inline <- paste0( "<img src='cid:",
+        basename(SimplePlot.file),
+        "' width = '1300' height = '700'>")
+# Put the text and plot together in the body of the email.
+Email[["HTMLBody"]] <- paste0(Body, SimplePlot.inline)
+
+# Either display the email in Outlook or send it straight away.
+# Comment out either line.
+Email$Display()
+#Email$Send()
+
+# Delete the temporary file used to attach images.
+unlink(SimplePlot.file)
+```
+
+
+```{r network-diagram}
+walk(as_igraph(e2), plot)
+```
+
+
+
+```{r plots, eval=FALSE}
+walk(as_igraph(e2)[1], plot)
+
+# egor_vis_app(e2)
+
+graphs <- clustered_graphs(e2, "altrelation_a")
+
+par(mfrow = c(2,2), mar = c(0,0,0,0))
+vis_clustered_graphs(graphs[1:3],
+                     node.size.multiplier = 1,
+                     edge.width.multiplier = 1,
+                     label.size = 0.6)
+
+plot(make_egor(1, 25), pie_var = "altrelation_a", type = "egogram")
+
+plot_egograms(x = e2, ego_no = 12, pie_var ="altrelation_a", venn_var = "altintfreq_a")
+plot_egograms(x = e2, ego_no = 12, pie_var ="altrelation_a", venn_var = "altsmoke")
+
+```

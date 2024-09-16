@@ -1,0 +1,70 @@
+---
+title: "Working with egoR"
+author: "Camille Hochheimer, PhD"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+library(egor)
+library(here)
+library(tidyverse)
+library(purrr)
+library(network)
+```
+
+## Importing data from Qualtrics and creating egor object
+
+```{r data-import}
+qu_data <- read.csv(here("./05 Data/Personal+Network+Assessment_March+14,+2022_08.33.csv"))
+
+qu_data <- qu_data[8:nrow(qu_data),] #get rid of junk in first 7 rows
+
+# Create egoID
+qu_data$egoID <- 1:nrow(qu_data)
+
+library(egor)
+
+e1 <- onefile_to_egor(egos = qu_data,
+                      ID.vars = list(ego = "egoID"),
+                      attr.start.col = "relationship_a1", # Name of Variable with the first alter attribute
+                      attr.end.col = "Q734", # Name of variable with last alter attribute
+                      max.alters = 5, # Number of maximum alters that were named by participants
+                      aa.first.var = "AP1") # Name of first alter-alter variable
+
+alter_filter <- 
+  e1 %>% 
+  as_tibble() %>% 
+  arrange(.egoID) %>% 
+  select(AlterList_1:AlterList_5) %>% 
+  mutate(across(.fns = ~. != "")) %>% 
+  as.data.frame() %>% 
+  tidyr::pivot_longer(cols = everything()) %>% 
+  pull(value)
+
+e1 <- 
+  e1 %>% 
+  activate(alter) %>% 
+  filter(alter_filter) %>% 
+  activate(aatie) %>% 
+  filter(weight != "")
+
+summary(e1)
+
+```
+
+
+## egor visualizations
+
+What are the differences between these?
+
+```{r egor-visualizations}
+
+walk(as_igraph(e1)[1:4], plot)
+
+walk(as_network(e1)[1:4], plot)
+
+plot(e1)
+
+```
+

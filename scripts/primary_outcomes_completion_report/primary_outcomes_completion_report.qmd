@@ -1,0 +1,1014 @@
+---
+title: "Primary Outcomes Completion Report"
+date: today
+format:
+  html:
+    toc: true
+    html-math-method: katex
+    css: styles.css
+    embed-resources: true
+
+execute:
+  echo: false
+  warning: false
+---
+
+```{r, echo = FALSE, eval = FALSE}
+################################################################################
+# Carlos Rodriguez, PhD. CU Anschutz, Dept. of Fam. Medicine
+# Helpers stay quit - primary completion report
+
+# This report is designed to count frequencies and proportions of the missing
+# and non-missing values for the primary and secondary outcomes as defined in
+# the statistical analysis plan.
+# In addition, this report scores and summarises the multiple instruments used
+# in the HSQ surveys,
+# Finally, this report will export .csv files for importing into SAS.
+################################################################################
+```
+
+```{r}
+# For VS Code
+# renv::load("C:/Users/rodrica2/OneDrive - The University of Colorado Denver/Documents/DFM/projects/hsq/Helpers-Stay-Quit/renv_library")
+```
+
+```{r, load libraries, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+
+pacman::p_load(here,
+               tidyverse,
+               magrittr,
+               gtsummary,
+               Hmisc, 
+               gt,
+               install = FALSE)
+```
+
+```{r, echo = FALSE}
+# Loads the function that updates data from the hsq participant management project
+source(here("Helpers-Stay-Quit", "03 Code/functions/get_hsq_data.R"))
+
+# Load updated 0, 3, 6, 9, and 12 month survey data
+# This will include rows where participants were not randomized to a treatment
+# and represents the entire data set in the primary HSQ RedCap project
+data <- get_hsq_data()
+```
+
+```{r}
+# Create a combined list of data frames that have been filtered by a length of
+# time. Patients who were recently randomized, may have baseline survey data 
+# available, but may have not been in the study long enough to receive a follow
+# up survey. Including these patients in a count for a follow up survey would 
+# increase the denominator to the total number of participants and inflate the 
+# number of missing values, and produce aberrant proportions when tabulating.
+
+# To prevent counting patients who have not been in the study long enough to
+# receive a followup survey at a given time point, individual data sets are 
+# filtered according to the number of days since randomization + a 14 day period
+# to complete a survey. For example, to filter the 3 month data, patients must 
+# have been enrolled in the study for at least 90 + 14 or 104 days.
+
+# Data for the baseline survey are only filter to those that have been 
+# randomized to one of the treatment groups.
+
+data_lst <- list(
+  (data %>%
+  filter(event_name == "0mo") %>%
+  filter(!is.na(days_since_rand))),
+
+  (data %>%
+  filter(event_name == "3mo") %>%
+  filter(days_since_rand >= 90 + 14)),
+
+  (data %>%
+  filter(event_name == "6mo") %>%
+  filter(days_since_rand >= 180 + 14)),
+
+  (data %>%
+  filter(event_name == "9mo") %>%
+  filter(days_since_rand >= 270 + 14)),
+
+  (data %>%
+  filter(event_name == "12mo") %>%
+  filter(days_since_rand >= 365 + 14)))
+
+# Process variables
+data_lst %<>%
+  purrr::map( ~.x %>%
+                mutate(
+                       gender = recode(gender, 
+                        ",Man (including transman and transmasculine)" = "Man",
+                        "Woman (including transwoman and transfeminine)" = "Woman",
+                        "Prefer to self-describe (non-binary, gender queer) please specify below" = "Prefer to self_describe"))
+              )
+```
+
+```{r, data_lst indexes}
+# data_lst indexes
+# 1 ~ 0mo
+# 2 ~ 3mo
+# 3 ~ 6mo
+# 4 ~ 9mo
+# 5 ~ 12mo
+```
+
+# Total number of randomized patients in RedCap to date
+```{r}
+# Use the baseline survey time point to display the total number of randomized patients
+data_lst[[1]] %>%
+  select(arm) %>%
+  rename(Arm = arm) %>%
+  tbl_summary(digits = everything() ~ c(0,1))
+```
+
+# Demographics 
+```{r}
+data_lst[[1]] %>% 
+  # mutate(arm = ifelse(arm == "1-  HSQ training - beginning of participation", "Intervention", "Control")) %>%
+  mutate(across(race___0:race____1, ~ ifelse(.x == "Checked", 1, 0))) %>%
+  mutate(Hispanic = eth,
+         "Black or African American" = race___0,
+         "Asian" = race___1,
+         "White/Caucasian" = race___2,
+         "Native Hawaiian or other Pacific Islander" = race___3,
+         "American Indian/Alaska Native" = race___4,
+         "Other" = race____66,
+         "Declined" = race____1,
+         Arm = arm,
+         Gender = gender) %>%
+  select(Arm, Gender, Hispanic:Declined) %>%
+  mutate(Gender = fct_na_value_to_level(factor(Gender, levels = c("Man", "Woman", "Prefer to self-describe")), level = "Missing")) %>%
+  tbl_summary(by = Arm) %>%
+  bstfun::add_variable_grouping("Race" = c("Black or African American",
+         "Asian",
+         "White/Caucasian",
+         "Native Hawaiian or other Pacific Islander",
+         "American Indian/Alaska Native",
+         "Other",
+         "Declined"))
+```
+
+# Aim 1
+
+## Primary Outcomes: Smoking status (30-day and 7-day point prevalence abstinence) at 6- and 12- months
+```{r}
+# Filter individuals who are eligible at each time point
+# Eligibility defined as being in the study 180 + 14 days past randomization
+```
+
+#### Have you smoked cigarettes in the past 30 days (even a puff)?
+- Denominator includes those that have been enrolled in the study for the 6 or 12 months plus a 14-day grace period to complete the survey.
+```{r}
+data_lst[c(3,5)] %>%
+  purrr::map( ~.x %>%
+                select(fu_smoke1) %>%
+                mutate(fu_smoke1 = ifelse(is.na(fu_smoke1), "Missing", "Not Missing")) %>%
+                tbl_summary(type = all_dichotomous() ~ "categorical",
+                            label = fu_smoke1 ~ "Smoked in past 30 days")        
+              ) %>%
+  tbl_merge(.,
+          tab_spanner = c("**6mo**", "**12mo**"))
+```
+
+#### Have you smoked cigarettes in the past 7 days (even a puff)?
+- Denominators includes those that have been enrolled in the study for the 6 or 12 months plus a 14-day grace period to complete the survey.
+- "No" responses from 30-day time point carried over to 7-day time point
+```{r}
+data_lst[c(3,5)] %>%
+  purrr::map( ~.x %>%
+                  mutate(fu_smoke5 = ifelse(fu_smoke1 == "No", "No", fu_smoke5)) %>%
+                  select(fu_smoke5) %>%
+                  mutate(fu_smoke5 = ifelse(is.na(fu_smoke5), "Missing", "Not Missing")) %>%
+                  tbl_summary(type = all_dichotomous() ~ "categorical",
+                              label = fu_smoke5 ~ "Smoked in past 7 days")      
+              ) %>%
+  tbl_merge(.,
+          tab_spanner = c("**6mo**", "**12mo**"))
+```
+
+# Secondary Outcomes: 
+
+## The timing of participants’ first relapse to smoking (secondary outcome)
+Timing of first relapse is derived from SMS surveys which are administered weekly for weeks 1 through 24 and bi-weekly thereafter.
+```{r}
+# pull SMS data
+# remove week 0, since it's more of a record keeping row
+# Group by week total number of rows is the denominator, for each week,
+# then count the number of those that responded vs not responded.
+```
+
+```{r, echo = FALSE}
+# Define get_redcap_report function which will retrieve a report from a given
+# RedCap project according to the report_id (assigned in RedCap)
+get_redcap_report <- function (token, report_id, labels = "raw"){
+    url <- "https://redcap.ucdenver.edu/api/"
+
+   formData <- list(token = token, content = "report", format = "csv",
+        report_id = report_id, csvDelimiter = "", rawOrLabel = labels,
+        rawOrLabelHeaders = "raw", exportCheckboxLabel = "false",
+        returnFormat = "csv")
+
+    response <- httr::POST(url, body = formData, encode = "form")
+
+    result <- httr::content(response)
+
+    return(result)
+}
+```
+
+```{r, echo = FALSE}
+# Retrieve SMS data from HSQ SMS Survey report
+sms <- get_redcap_report(token = Sys.getenv("HSQ_sms"),
+                                   report_id = "117325")
+```
+
+```{r, echo = FALSE, eval=FALSE}
+# If warning arises, use problems() to investigate.
+# warning arises because sms_survey_timestamp contains "[not completed]"
+problems(sms)
+```
+
+```{r, echo = FALSE}
+# Process the sms data set, by creating rows for which patients did not submit
+# an sms survey, in order to calculate the actual number of missing data
+sms %<>%
+  complete(record_id, redcap_event_name) %>% # Introduce rows with missing values for each possible sms week
+  group_by(record_id) %>%
+  fill(randomization_dtd, .direction = "downup") %>%
+  fill(sms_strt_dtd, .direction = "downup") %>%
+  fill(hsqid, .direction = "downup") %>%
+  fill(patientend_dtd, .direction = "downup") %>%
+  ungroup() %>%
+  filter(redcap_event_name != "week0_arm_1") %>% # this row contains housekeeping data and is not of interest
+  mutate(redcap_event_name = str_replace_all(redcap_event_name,
+                                             c("week1_" = "week01_",
+                                               "week2_" = "week02_",
+                                               "week3_" = "week03_",
+                                               "week4_" = "week04_",
+                                               "week5_" = "week05_",
+                                               "week6_" = "week06_",
+                                               "week7_" = "week07_",
+                                               "week8_" = "week08_",
+                                               "week9_" = "week09_"))) %>%
+  mutate(redcap_event_name = str_replace(redcap_event_name, "_arm_1", "")) %>%
+  mutate(weeks_since_rand = round(difftime(Sys.Date(), as.Date(randomization_dtd), unit = "weeks"))) %>%
+  mutate(week = as.numeric(str_replace(redcap_event_name, "week", ""))) %>%
+  arrange(record_id, week) %>%
+  select(-redcap_survey_identifier) %>%
+  mutate(sms_strt_dtd = as.Date(sms_strt_dtd),
+         sms_survey_timestamp = as.Date(sms_survey_timestamp))
+
+# Determine the length of time in weeks each participant has been enrolled in 
+# the study, starting from the randomization date
+weeks_in_study <-
+  sms %>%
+  select(record_id, weeks_since_rand) %>%
+  group_by(record_id) %>%
+  slice_head() %>%
+  ungroup()
+```
+
+```{r, echo = FALSE}
+# Create a wide dataframe from sms based off of the smoke1 variable
+wide <-   sms %>%
+  # mutate(smoke1 = ifelse(is.na(smoke1), "Missing", "Not Missing")) %>%
+  select(record_id, redcap_event_name, smoke1) %>%
+  group_by(record_id) %>%
+  pivot_wider(names_from = redcap_event_name, values_from = smoke1) %>%
+  ungroup()
+
+# Get the names of the columns, except for record_id in the wide data frame
+col_names <- names(wide %>% select(-record_id))
+
+# Sort the names of the columns as they will determine how to place the Week #
+# in order for displaying in a table
+col_names <- col_names %>% sort()
+
+# Reorder the columns in the order of weeks
+wide %<>%
+  select(record_id, all_of(col_names))
+
+# Join wide with weeks in the study for each participant
+wide <- left_join(wide, weeks_in_study, by = "record_id")
+```
+
+```{r, echo = FALSE}
+# For each column, determine which ids should be included at a given time point
+# If a patient has only been enrolled for two weeks, they should not be included
+# in counts for the number of missing values of the 4 week time point bc they
+# haven't been in the study long enough.
+create_weeks_table <- function(data){
+  # Create an empty data frame to eventually convert into a gt table
+  output_tbl <-  NULL
+
+  # For each week, only the number of participants that are eligible, will be
+  # counted for the number of missing/not missing values
+    for (i in 1:length(col_names)){
+  
+    # set the week to filter the data
+    week <- as.numeric(str_replace(col_names[i], "week", ""))
+  
+    tbl <- data %>%
+      filter(weeks_since_rand >= week) %>%
+      select(all_of(col_names[i])) %>%
+      mutate(across(everything(), ~ ifelse(is.na(.), "Missing", "Not Missing"))) %>%
+      tbl_summary() %>%
+      as_tibble()
+    
+    # Capture the table names to be able to index dynamically when converting to 
+    # wide
+    tbl_names <- names(tbl)
+    
+    # convert tbl to wide using the index column names
+    tbl %<>% 
+      pivot_wider(names_from = tbl_names[1], 
+                  values_from = tbl_names[2])
+    
+    # Create a new column indicating the week
+    tbl %<>% mutate(Week = week)
+    
+    # Select columns and then re-order
+    tbl %<>% 
+      select(Missing:Week) %>%
+      select(Week, everything())
+    
+    # Capture the number of rows available for calculating frequencies and 
+    # proportions for each week
+    N_rows <- 
+      wide %>% 
+      filter(weeks_since_rand >= week) %>% 
+      nrow()
+    
+    # Create a new column with the total number of participants with available
+    # data for each week
+    tbl %<>% 
+      mutate(N = N_rows) %>%
+      select(Week, N, Missing, everything())
+    
+    # Append each new week's data to the next
+    output_tbl <- bind_rows(output_tbl, tbl)
+  
+    }
+   return(output_tbl)
+}
+
+output_tbl <- create_weeks_table(wide)
+```
+
+```{r, echo = FALSE, eval=FALSE}
+output_tbl %>% gt()
+```
+
+```{r, echo = FALSE}
+################## PREPARE TIME TO EVENT DATA ##################################
+# Get the average or min/max of days between the date the sms survey is 
+# scheduled to be delivered and the survey time stamp. The rationale for 
+# discovering this is to determine how to assign a survey time stamp for 
+# patients who responded to smoke1, but did not submit their survey causing
+# RedCap to not record a survey timestamp.
+
+# avg_t_to_submit DOES NOT NEED TO BE RUN EVERY SINGLE TIME
+# avg_t_to_submit <- 
+# sms %>%
+#   drop_na(sms_survey_timestamp) %>%
+#   mutate(first_half = ifelse(week < 24, 1, 0)) %>%
+#   # filter(record_id == 105) %>%
+#   select(record_id, week, randomization_dtd, sms_strt_dtd, sms_survey_timestamp, first_half) %>%
+#   
+#   # sms_strt_dtd reflects the date that the sms messages started. Calculate the 
+#   # date the sms message is sent for each week.
+#   mutate(sms_sent_dtd = sms_strt_dtd + ((week-1) * 7)) %>%
+#   
+#   # count the number of days between the time stamp and the sent date
+#   # some sms messages will get sent out early and result in a negative time
+#   mutate(since_sms_sent_dtd = sms_survey_timestamp - sms_sent_dtd) %>%
+#   
+#   # remove rows with negative values, because some participants had issues in
+#   # RedCap where they did not receive week 1 record_ids 227-236
+#   filter(since_sms_sent_dtd >= 0) %>%
+#   select(record_id, since_sms_sent_dtd, first_half) %>%
+#   group_by(record_id, first_half) %>%
+#   summarise(across(since_sms_sent_dtd, ~ round(mean(.x)))) %>%
+#   ungroup() %>%
+#   group_by(first_half) %>%
+#   select(since_sms_sent_dtd) %>%
+#   summarise_all(list(mean = mean, min = min, max = max)) %>%
+#   ungroup() %>%
+#   mutate(across(everything(), ~ round(.x)))
+```
+
+```{r}
+# Based on code chunk above, on average, it takes 0 days for participants to submit their sms surveys
+t_submit <- 0
+```
+```{r}
+# Create an intermediary data frame where only patients that relapsed are 
+# retained, sort by date, then select the first available row to capture the 
+# date of the first relapse. Time stamps are then converted to dttm format as an
+# intermediary step to convert to as.Date(). The randomization dates are then 
+# subtracted from the time stamp to calculate the time to the first relapse.
+first_relapse <- 
+  sms %>%
+  filter(smoke1 == 1) %>% 
+  mutate(sms_survey_timestamp = if_else(is.na(sms_survey_timestamp) & !is.na(smoke1), 
+                                        (sms_strt_dtd + ((week-1) * 7 + t_submit)), sms_survey_timestamp)) %>%
+  arrange(record_id, sms_strt_dtd) %>%
+  group_by(record_id) %>%
+  slice_head() %>%
+  ungroup() %>%
+  mutate(sms_survey_timestamp = as.POSIXct(sms_survey_timestamp)) %>%
+  mutate(across(c(sms_strt_dtd, sms_survey_timestamp), ~ as.Date(.))) %>%
+  mutate(time_to_relapse = sms_survey_timestamp - randomization_dtd) %>%
+  select(record_id, time_to_relapse)
+```
+
+```{r}
+# Includes partially completed surveys, by estimating a sms_survey_timestamp as
+# the sum of the sms start date and the week-1 number * 7 days plus 2 to 
+# estimate the date of the last observation, otherwise the last observation is 
+# the last fully complete response.
+last_observation <-
+  sms %>% 
+  mutate(sms_survey_timestamp = if_else(is.na(sms_survey_timestamp) & !is.na(smoke1), 
+                                        (sms_strt_dtd + ((week-1) * 7 + t_submit)), sms_survey_timestamp)) %>%
+  arrange(record_id, week) %>%
+  drop_na(smoke1) %>%
+  group_by(record_id) %>%
+  slice_tail() %>%
+  ungroup() %>%
+  mutate(last_obs_dtd = as.POSIXct(sms_survey_timestamp)) %>%
+  mutate(across(c(sms_strt_dtd, sms_survey_timestamp), ~ as.Date(.))) %>%
+  mutate(time_to_last_obs = sms_survey_timestamp - randomization_dtd) %>%
+  select(record_id, time_to_last_obs)
+```
+
+```{r}
+# Create a data set that displays the number of days to the first relapse
+# One row per patient. In this data frame, those with missing time represent
+# true missing values. 
+t_to_relapse <- 
+  sms %>%
+  select(record_id, hsqid, randomization_dtd, sms_strt_dtd) %>%
+  group_by(record_id) %>%
+  slice_head() %>%
+  ungroup() %>%
+  left_join(., first_relapse, by = "record_id") %>%
+  left_join(., last_observation, by = "record_id") %>%
+  mutate(event = ifelse(is.na(time_to_relapse), 0, 1),
+         time = ifelse(is.na(time_to_relapse), time_to_last_obs, time_to_relapse),
+         status = ifelse(event == 1, "relapse", "abstain")) %>%
+  mutate(across(c(event, status), ~ifelse(is.na(time), NA, .)))
+
+# Add in State/quitline info, HSQID, age, sex, gender, race.ethnicity, and treatment
+t_to_relapse <- 
+left_join(t_to_relapse,
+          (data_lst[[1]] %>%  select(hsqid, arm, age, gender, eth, race___0:race____1, quitline)),
+          by = "hsqid")
+```
+
+```{r}
+# Before outputing to SAS. Convert dates to strings and save with na = ''
+# Output t_to_relapse to .csv file for SAS
+t_to_relapse %>%
+  mutate_if(is.Date, as.character) %>%
+  mutate_if(is.difftime, as.numeric) %>%
+  write_csv(here("analyses_sas", "data", "first_relapse.csv"), na = "")
+```
+
+"Missing" identifies individuals who did not answer any of sms survey smoke1 questions. "Not Missing" identifies individuals who answered at least one sms survey and includes individuals who partially completed sms surveys. Both time and event variables are required for time to event analysis
+```{r}
+# Table of the missing and non-missing values
+t_to_relapse %>%
+  select(time, event) %>%
+  mutate(across(everything(), ~ ifelse(is.na(.), "Missing", "Not Missing"))) %>%
+  tbl_summary()
+```
+
+```{r, eval = FALSE}
+# Check to see how long it usually takes to receive the sms_strt_dtd after the
+# randomization date.
+# sms survey typically starts 4 days after randomization, but could be as early
+# as within randomization and 14 days after randomization.
+sms %>% 
+  group_by(record_id) %>% 
+  slice_head() %>% 
+  ungroup() %>% 
+  mutate(sms_strt_dtd = as.Date(as.POSIXct(sms_strt_dtd))) %>% 
+  mutate(time_btw = sms_strt_dtd - randomization_dtd) %>% 
+  select(time_btw) %>%
+  summarise(mean = mean(time_btw), 
+            stdev = sd(time_btw),
+            min = min(time_btw),
+            max = max(time_btw))
+```
+
+```{r, echo = FALSE, eval = FALSE}
+# Display the proportion of abstainers and relapsers at each week of the sms
+# surveys
+# create_weeks_table <- function(data){
+#   # Create an empty data frame to eventually convert into a gt table
+#   output_tbl <-  NULL
+# 
+#   # For each week, only the number of participants that are eligible, will be
+#   # counted for the number of missing/not missing values
+#     for (i in 1:length(col_names)){
+#   
+#     # set the week to filter the data
+#     week <- as.numeric(str_replace(col_names[i], "week", ""))
+#   
+#     tbl <- data %>%
+#       filter(weeks_since_sms_strt >= week) %>%
+#       select(all_of(col_names[i])) %>%
+#       mutate(across(everything(), ~ case_match(., 
+#                                          0 ~ "Abstain",
+#                                          1 ~ "Relapse"))) %>%
+#       mutate(across(everything(), ~ factor(.))) %>%
+#       mutate(across(everything(), ~ fct_na_value_to_level(., level = "Missing"))) %>%
+#       tbl_summary() %>%
+#       as_tibble()
+#     
+#     # Capture the table names to be able to index dynamically when converting to 
+#     # wide
+#     tbl_names <- names(tbl)
+#     
+#     # convert tbl to wide using the index column names
+#     tbl %<>% 
+#       pivot_wider(names_from = tbl_names[1], 
+#                   values_from = tbl_names[2])
+#     
+#     # Create a new column indicating the week
+#     tbl %<>% mutate(Week = week)
+#     
+#     # Select columns and then re-order
+#     tbl %<>% 
+#       select(Abstain:Week) %>%
+#       select(Week, everything())
+#     
+#     # Capture the number of rows available for calculating frequencies and 
+#     # proportions for each week
+#     N_rows <- 
+#       wide %>% 
+#       filter(weeks_since_sms_strt >= week) %>% 
+#       nrow()
+#     
+#     # Create a new column with the total number of participants with available
+#     # data for each week
+#     tbl %<>% 
+#       mutate(N = N_rows) %>%
+#       select(Week, N, Missing, everything())
+#     
+#     # Append each new week's data to the next
+#     output_tbl <- bind_rows(output_tbl, tbl)
+#   
+#     }
+#    return(output_tbl)
+# }
+# 
+# output_tbl <- create_weeks_table(wide)
+# 
+# output_tbl %>% gt::gt()
+
+```
+
+## Rates of participants’ self-reported delivery of HCs to other tobacco users (secondary outcome).
+```{r}
+wide_help1 <- sms %>%
+  select(record_id, redcap_event_name, help1) %>%
+  group_by(record_id) %>%
+  pivot_wider(names_from = redcap_event_name, values_from = help1) %>%
+  ungroup()
+
+col_names <- names(wide_help1 %>% select(-record_id))
+
+col_names <- col_names %>% sort()
+
+# Reorder the columns in the order of weeks
+wide_help1 %<>%
+  select(record_id, all_of(col_names))
+
+# Join the wide_help1
+wide_help1 <- left_join(wide_help1, weeks_in_study, by = "record_id")
+```
+
+```{r, echo = FALSE}
+output_tbl <- create_weeks_table(wide_help1)
+```
+
+```{r, echo = FALSE}
+output_tbl %>% gt::gt()
+```
+
+## Smoking status (30-day and 7-day point prevalence abstinence) at 3- and 9- months
+```{r}
+# Filter individuals who are eligible at each time point
+# Eligibility defined as being in the study 180 + 14 days past randomization
+```
+
+#### Have you smoked cigarettes in the past 30 days (even a puff)?
+- Denominator includes those that have been enrolled in the study for the 6 or 12 months plus a 14-day grace period to complete the survey.
+```{r}
+data_lst[c(2,4)] %>%
+  purrr::map( ~.x %>%
+                select(fu_smoke1) %>%
+                mutate(fu_smoke1 = ifelse(is.na(fu_smoke1), "Missing", "Not Missing")) %>%
+                tbl_summary(type = all_dichotomous() ~ "categorical")        
+              ) %>%
+  tbl_merge(.,
+          tab_spanner = c("**3mo**", "**9mo**"))
+```
+
+#### Have you smoked cigarettes in the past 7 days (even a puff)?
+- Denominator includes those that have been enrolled in the study 104 days (3 months = 90 days, plus a 14-day period to complete the survey)
+- "No" responses from 30-day time point carried over to 7-day time point
+```{r}
+data_lst[c(2,4)] %>%
+  purrr::map( ~.x %>%
+                  mutate(fu_smoke5 = ifelse(fu_smoke1 == "No", "No", fu_smoke5)) %>%
+                  select(fu_smoke5) %>%
+                  mutate(fu_smoke5 = ifelse(is.na(fu_smoke5), "Missing", "Not Missing")) %>%
+                  tbl_summary(type = all_dichotomous() ~ "categorical")      
+              ) %>%
+  tbl_merge(.,
+          tab_spanner = c("**3mo**", "**9mo**"))
+```
+
+```{r}
+# Declare the spanner vector for labelling tables
+spanner <- c("**0mo**", "**3mo**", "**6mo**", "**9mo**", "**12mo**")
+```
+
+## PHQ4
+```{r}
+# PHQ4 (PH4): 
+#     - Collected at baseline, 3, 6, 9, and 12 months
+#     - 4 items phq_1:phq_4; 4-point Likert
+#     - ultra-brief screening scale for anxiety and depression
+#     - Composed of the first two items of the GAD7 and PHQ
+#     - Total score ranges from 0 through 12
+#     - Convert -1s to NA, then sum scores
+#     - Check how many do not have all 4 items answered
+#     - Items 1 and 2 correspond to GAD7 (anxiety)
+#     - Items 3 and 4 correspond to PHQ (depression)
+#     - Total sum score of psychological distress:
+#         - 0-2 - None
+#         - 3-5 - Mild
+#         - 6-8 - Moderate
+#         - 9-12 - Severe
+```
+
+```{r}
+# n.b. In cases where the responses are straightlined NA or "Prefer not to 
+# answer", rowSums(..., na.rm = TRUE) will return a 0, instead of the expected 
+# NA. To overcome this, multiply the rowSums(..., na.rm = TRUE) by NA raised to
+# to a value of TRUE or FALSE. NA^FALSE = 1, whereas NA^TRUE = NA. The TRUE/FALSE 
+# value of whether or not all questions are missing is given by 
+# !rowSums(!is.na(select(., phq_1:phq_4))), where TRUE indicates all values are
+# missing. Thus NA*TRUE will return NA which is used to multiply with the summed
+# scores and if the score is a 0 resulting from all NAs, it will result in an NA.
+```
+
+```{r}
+# Create anx, dep, and psy scores, which are sums of the individual sub scales 
+# and the overall psychological distress scores
+data_lst %<>%
+  purrr::map( ~.x %>%
+                mutate(across(phq_1:phq_4, ~recode(.,
+                                                   "Not at all" = 0,
+                                                   "Several days" = 1,
+                                                   "More than half the days" = 2,
+                                                   "Nearly every day" = 3,
+                                                   "Prefer not to answer" = NULL))) %>%
+                mutate(anx_score = rowSums(select(., phq_1:phq_2), na.rm = TRUE) * NA^!rowSums(!is.na(select(., phq_1:phq_2))),
+                       dep_score = rowSums(select(., phq_3:phq_4), na.rm = TRUE) * NA^!rowSums(!is.na(select(., phq_3:phq_4))),
+                       psy_score = rowSums(select(., phq_1:phq_4), na.rm = TRUE) * NA^!rowSums(!is.na(select(., phq_1:phq_4))),
+                       anx_bin = ifelse(anx_score >= 3, 1, 0),
+                       dep_bin = ifelse(dep_score >= 3, 1, 0),
+                       psy_cat = cut(psy_score,
+                                     breaks = c(-1,2,5,8,12),
+                                     labels = c("None (0-2)", "Mild (3-5)", "Moderate (6-8)", "Severe (9-12)")),
+                       PHQ4 = ifelse(is.na(psy_score), "Missing", "Not Missing"),
+                       Anxiety = ifelse(is.na(anx_score), "Missing", "Not Missing"),
+                       Depression = ifelse(is.na(dep_score), "Missing", "Not Missing")
+                       )
+  )
+```
+
+### Missing values of total summed scores of the PHQ4 (psychological distress), Anxiety (items 1-2), and Depression (items 3-4)
+```{r}
+# Display the data              
+data_lst %>%
+  purrr::map( ~.x %>%                
+              select(PHQ4, Anxiety, Depression) %>%
+                mutate(PHQ4 = factor(PHQ4, levels = c("Missing", "Not Missing"))) %>%
+              tbl_summary()
+  ) %>%
+  tbl_merge(.,
+          tab_spanner = spanner
+  )
+```
+
+### Anxiety, depression, and psychological distress scores
+Displays the overall anxiety, depression, and psychological distress scores of the PHQ4. Psychological distress combines the anxiety and depression subscales by computing a sum across all 4 questions, and categorizing into levels of severity based on predefined cut points. Responses with missing values were included in summed scores (i.e. includes participants who did not complete all 4 questions).
+- Total sum score of psychological distress:
+- 0-2 - None     
+- 3-5 - Mild
+- 6-8 - Moderate
+- 9-12 - Severe
+```{r}
+# Create a table of the separate anxiety and depression scores along with the
+# overall psychological distress scores and their categorical frequencies and 
+# proportions
+data_lst %>%
+  purrr::map( ~.x %>%
+                select(anx_score, dep_score, psy_score, psy_cat) %>%
+  tbl_summary(type = list(anx_score ~ "continuous",
+                          dep_score ~ "continuous"),
+              statistic = list(all_continuous() ~"{mean} ({sd})"))
+              ) %>%
+  tbl_merge(.,
+          tab_spanner = spanner
+)
+```
+
+## Abstinence-related motivational engagement (ARME) scale
+```{r}
+# Abstinence-related motivational engagement (ARME) scale (short form): 
+#     - Collected at baseline, 3, 6, 9, and 12 months
+#     - 5 items arme_1:arme_5, 7-point Likert
+#     - Assesses motivation to remain abstinent after smoking cessation attempt
+#     - Convert categorical text to numerical
+#     - Convert -1s to NA, then sum scores
+#     - Count how many have a complete response i.e. no missing responses
+#     - Check for straightliners???
+```
+
+```{r}
+# Modify the list of data frames for the ARME scale. Convert the categorical
+# responses to numeric, converting "prefer not to answer" to NULL in the process. 
+# Other wise if some one filled in each answer with "prefer not to answer" then 
+# they will get counted as someone who submitted all responses, which they did, 
+# but cannot be scored.
+
+# Create ARME variable across all data frames in data_lst
+data_lst %<>%
+  purrr::map( ~.x %>%
+                mutate(across(arme_1:arme_5, ~recode(.,
+                                       "Completely disagree" = 1,
+                                       "2" = 2,
+                                       "3" = 3,
+                                       "Neither agree nor disagree" = 4,
+                                       "5" = 5,
+                                       "6" = 6,
+                                       "Completely agree" = 7,
+                                       "Prefer not to answer" = NULL))) %>%
+                # mutate(ARME = rowSums(!is.na(select(., arme_1:arme_5))),
+                #        ARME = ifelse(ARME == 5, "Not Missing", "Missing")) %>%
+                mutate(arme_score = rowSums(select(., arme_1:arme_5), na.rm = TRUE) * NA^!rowSums(!is.na(select(., arme_1:arme_5))),
+                       ARME = ifelse(is.na(arme_score), "Missing", "Not Missing"))
+  )
+```
+
+### Missing values of total summed scores
+Missing is defined as a response where all questions from the ARME were missing and thus a summed scored was not able to be computed.
+```{r}
+# Create a list of the tbl_summary() outputs from the ARME variable
+data_lst %>%
+  purrr::map( ~.x %>%
+                select(ARME) %>%
+                tbl_summary()         
+              ) %>%
+  tbl_merge(.,
+          tab_spanner = spanner
+)
+```
+
+### Summary of summed ARME scores
+```{r}
+data_lst %>%
+  purrr::map( ~.x %>%
+                select(arme_score) %>%
+                tbl_summary(statistic = list(all_continuous() ~ "{mean} ({sd})"))
+              ) %>%
+  tbl_merge(.,
+          tab_spanner = spanner
+  )
+```
+
+## Self-Efficacy
+```{r}
+# 5 items 1:5 are about confidence
+# scored and 4 point Likert scale
+
+# 7 items 6:12 are about self efficacy
+# scored on a 7 point Likert scale
+# Ask about how sure someone is about the question
+# May not be from Etter, 2000 reference bc Etter is a 7 point scale HSQ is 5 point
+```
+
+```{r, echo = FALSE, eval =FALSE}
+data_lst[[2]] %>%
+           select(se6:se12, se1:se5)
+```
+
+```{r}
+# Create a list of the tbl_summary() outputs from the SE variable
+data_lst %>%
+  purrr::map( ~.x %>%
+                select(se1:se5, se6:se12) %>%
+                mutate(across(everything(), ~factor(
+                  ifelse(!is.na(.), "Missing", "Not Missing"), levels = c("Missing", "Not Missing")))) %>%
+                tbl_summary()         
+              ) %>%
+  tbl_merge(.,
+          tab_spanner = spanner)
+```
+
+## Proactive coping scale
+```{r}
+# Proactive coping scale (part of the proactive coping inventory)
+#     - Collected at baseline, 3, 6, 9, and 12 months
+#     - 14 items, pcs_01:pcs_14, 
+#     - Assesses future oriented coping (effectively managing stressful events)
+#     - Reverse score items 2, 9, 14
+#     - Convert categorical text to numerical
+#     - Convert -1s to NA, then sum scores
+
+# Convert categorical responses to numeric, reverse code, and sum the responses,
+# and adjust for those that 
+data_lst %<>%
+  purrr::map( ~.x %>%
+                # select(pcs_01:pcs_14) %>%
+                mutate(across(pcs_01:pcs_14, ~ recode(.,
+                                                      "Not at all true" = 1,
+                                                      "Barely true" = 2,
+                                                      "Somewhat true" = 3,
+                                                      "Completely true" = 4,
+                                                      "Prefer not to answer" = NULL))) %>%
+                # Reverse score items 2, 9, and 14
+                mutate(across(c(pcs_02, pcs_09, pcs_14), ~ . * -1 + 5)) %>%
+                
+                # rowSums of all NAs results in 0, thus we need to multiply sums 
+                # by a vector that describes whether or not all values were NA, 
+                # so that summed 0 scores resulting from all NAs are converted
+                # NAs. Equivalent to set value to NA if number of NAs equals 14, 
+                # else leave as original value 
+                # !rowSums(!is.na(select(., pcs_01:pcs_14))) gives a logical, true/false if all the values in the row
+                # are NA.
+                mutate(pcs_score = rowSums(select(., pcs_01:pcs_14), na.rm = TRUE) * NA^!rowSums(!is.na(select(., pcs_01:pcs_14))),
+                       PCS = ifelse(is.na(pcs_score), "Missing", "Not Missing"))
+  )
+```
+
+### Missing values of total summed scores
+```{r}
+# Create a list of the tbl_summary() outputs from the PCS variable
+data_lst %>%
+  purrr::map( ~.x %>%
+                select(PCS) %>%
+                mutate(PCS = factor(PCS, levels = c("Missing", "Not Missing"))) %>%
+                tbl_summary()         
+              ) %>%
+  tbl_merge(.,
+          tab_spanner = spanner)
+```
+
+### Summed scores
+```{r}
+# Display the mean and sd of the pcs_score
+data_lst %>%
+  purrr::map( ~.x %>%
+                select(pcs_score) %>%
+                tbl_summary(statistic = all_continuous() ~ "{mean} ({sd})")
+              ) %>%
+  tbl_merge(.,
+          tab_spanner = spanner)
+```
+
+## COGDIS
+```{r}
+# COGDIS
+
+# Set any value of "Prefer not to answer" between cd1 and cd6 to NA. Then, 
+# combine answers by setting Yes a little/Yes a lot to 1, or Definitely/Probably
+# to 1. Then create the following 3 new variables:
+
+# 1. cd_attraction - binary indicator of residual attraction to smoking, set to 1
+# if the participant responded Yes a little or Yes a lot to one of cd1:cd3, else 
+# set to 0
+
+# 2. cd_smoker - binary indicator of self reported label, set to 0 if the 
+# participant responded definitely non smoker to cd4, else set to 1
+
+# 3. cd_vulnerability - binary indicator of vulnerability to smoking relapse, set 
+# to 1 if participant responded Definitely or Probably to cd5:cd6, else set to 0
+
+data_lst %<>%
+  purrr::map( ~.x %>%
+                mutate(across(cd1:cd6, ~ifelse(. == "Prefer not to answer", NA, .))) %>%
+                mutate(across(cd1:cd2, ~ifelse(. == "Yes a little" | . == "Yes a lot", 1, 0)),
+                       across(c(cd3, cd5, cd6), ~ifelse(. == "Definitely" | . == "Probably", 1, 0))) %>%
+                mutate(cd_attraction = ifelse(cd1 == 1 | cd2 == 1 | cd3 ==1, 1, 0),
+                       cd_smoker = ifelse(cd4 == "Definitely a non-smoker", 0, 1),
+                       cd_vulnerable = ifelse(cd5 == 1 | cd6 == 1, 1, 0))
+
+  )
+```
+
+```{r}
+# Create a list of the tbl_summary() outputs from the CD variable
+data_lst %>%
+  purrr::map( ~.x %>%
+                select(cd_attraction:cd_vulnerable) %>%
+                mutate(across(cd_attraction:cd_vulnerable, ~ ifelse(is.na(.), "Missing", "Not Missing")),
+                       across(cd_attraction:cd_vulnerable, ~ factor(., levels = c("Missing", "Not Missing")))) %>%
+                tbl_summary()         
+              ) %>%
+  tbl_merge(.,
+          tab_spanner = spanner)
+```
+
+## Treatment Self Regulation Questionnaire (TSRQ)
+```{r}
+# Treatment Self Regulation Questionnaire (TSRQ)
+#     - Collected at baseline, 3, 6, 9, and 12 months
+#     - 15 items, tsrq1:tsrq15, 7-point Likert
+#     - Contains multiple sub scales
+#         - items from each subscale are averaged
+#     - assess self-regulation for abstaining from tobacco
+#     - Autonomous motivation (factor 1)
+#       - Items 13, 3, 1, 8, 6, 11
+#     - Introjected regulation (factor 2)
+#       - Items 2, 7,
+#     - External regulation (factor 3)
+#       - Items 9, 4, 14, 12
+#     - Amotivation (factor 4)
+#       - Items 5, 15, 10
+
+# Modify the data
+data_lst %<>%
+  purrr::map( ~.x %>%
+                mutate(across(tsrq1:tsrq15, ~ recode(.,
+                                                     "1 - Not at all true" = 1,
+                                                     "2" = 2,
+                                                     "3" = 3,
+                                                     "4 - Somewhat true" = 4,
+                                                     "5" = 5,
+                                                     "6" = 6,
+                                                     "7 - Very true" = 7,
+                                                     "Prefer not to answer" = NULL))) %>%
+                rowwise() %>%
+                mutate(tsrq_auto = mean(c(tsrq13, tsrq3, tsrq1, tsrq8, tsrq6, tsrq11), na.rm = TRUE),
+                       tsrq_intr = mean(c(tsrq2, tsrq7), na.rm = TRUE),
+                       tsrq_extr = mean(c(tsrq9, tsrq4, tsrq14, tsrq12), na.rm = TRUE),
+                       tsrq_amot = mean(c(tsrq5, tsrq15, tsrq10), na.rm = TRUE)
+                       ) %>%
+                ungroup()
+  )
+```
+
+### Missing values of subscale scores
+Missing indicates that all responses within a subscale were either not answered or the participant selected "Prefer not to answer." 
+```{r}
+data_lst %>%
+  purrr::map( ~.x %>%
+                select(tsrq_auto:tsrq_amot) %>%
+                mutate(across(tsrq_auto:tsrq_amot, ~ ifelse(is.na(.), "Missing", "Not Missing")),
+                       across(tsrq_auto:tsrq_amot, ~ factor(., levels = c("Missing", "Not Missing")))) %>% 
+                tbl_summary()) %>%
+  tbl_merge(., tab_spanner = spanner)
+
+# data_lst[[1]] %>%
+#   filter(record_id == 184) %>%
+#   select(starts_with("tsrq"))
+```
+
+### Mean subscale scores
+```{r}
+# Display the data
+data_lst %>%
+  purrr::map( ~.x %>%
+                select(tsrq_auto:tsrq_amot) %>%
+                tbl_summary(statistic = list(all_continuous() ~ "{mean} ({sd})")) 
+  ) %>%
+  tbl_merge(.,
+          tab_spanner = spanner)
+```
+
+```{r}
+# Output to SAS for analysis
+
+# Flatten the list
+flat_lst <- bind_rows(
+  data_lst[[1]],
+  data_lst[[2]],
+  data_lst[[3]],
+  data_lst[[4]],
+  data_lst[[5]]
+)
+
+
+flat_lst %>%
+  mutate_if(is.Date, as.character) %>%
+  mutate_if(is.difftime, as.numeric) %>%
+  write_csv(here("analyses_sas", "data", "hsq_data.csv"), na = "")
+```
