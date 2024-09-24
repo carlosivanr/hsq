@@ -9,7 +9,7 @@ output: html_document
 ```{r, echo = FALSE, eval = FALSE}
 # This script is designed to generate and upload 5 network diagrams for each 
 # participant in the HSQ study. These diagrams are intended for use in the 
-# qualitative sub-study
+# qualitative sub-study.
 
 # Dependencies:
 # Requires API access to the HSQ Participant Management RedCap Project

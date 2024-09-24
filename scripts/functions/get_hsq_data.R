@@ -182,6 +182,7 @@ get_hsq_data <- function(){
   ####### Stack and process data ------------------------------------------------
   # Some columns may get imported as character instead of numeric, place
   # all data frames into a survey to modify and obtain a consistent format
+  survey_6mo$fu_smoke6 <- as.numeric(survey_6mo$fu_smoke6)
   survey_9mo$fu_smoke2 <- as.numeric(survey_9mo$fu_smoke2)
 
   # Bind rows to keep a data frame of the full data

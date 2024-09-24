@@ -7,24 +7,27 @@ format:
     toc: true
 ---
 
+```{r}
+# qualitative personal network dyad matching
+```
+
 ```{r, load libraries, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
-# renv::load('C:/Users/rodrica2/OneDrive - The University of Colorado Denver/Documents/DFM/projects/hsq/HSQ-Reports')
 
 library(here) 
 library(tidyverse)
-# library(MatchIt)
 library(magrittr, include.only = "%<>%")
+# library(MatchIt)
 ```
 
 ```{r}
 # Render the qualitative_diagrams.Rmd file
 # This file searches in Redcap for which participants need to have diagrams 
 # generated and uploaded for the qualitative sub-study, downloads their data,
-# generates and then uploads their digrams back to redcap. This is a required
+# generates and then uploads their diagrams back to RedCap. This is a required
 # step before proceeding with the remainder of this script.
 # n.b. may error out if there are no participants that need qualitative diagrams
-rmarkdown::render("C:/Users/rodrica2/OneDrive - The University of Colorado Denver/Documents/DFM/projects/hsq/Helpers-Stay-Quit/03 Code/qualitative_diagrams.Rmd")
+rmarkdown::render("C:/Users/rodrica2/OneDrive - The University of Colorado Denver/Documents/DFM/projects/hsq/scripts/dyad reports/qualitative_diagrams.Rmd")
 ```
 
 ```{r, set tokens, include=FALSE}

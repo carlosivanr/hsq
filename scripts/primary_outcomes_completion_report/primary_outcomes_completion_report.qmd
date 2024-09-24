@@ -21,9 +21,8 @@ execute:
 # This report is designed to count frequencies and proportions of the missing
 # and non-missing values for the primary and secondary outcomes as defined in
 # the statistical analysis plan.
-# In addition, this report scores and summarises the multiple instruments used
-# in the HSQ surveys,
-# Finally, this report will export .csv files for importing into SAS.
+# In addition, this report scores and summarizes the instruments used in the HSQ
+# surveys. Finally, this report will export .csv files for importing into SAS.
 ################################################################################
 ```
 
@@ -46,7 +45,9 @@ pacman::p_load(here,
 
 ```{r, echo = FALSE}
 # Loads the function that updates data from the hsq participant management project
-source(here("Helpers-Stay-Quit", "03 Code/functions/get_hsq_data.R"))
+# source(here("Helpers-Stay-Quit", "03 Code/functions/get_hsq_data.R"))
+source(here("scripts/functions/get_hsq_data.R" ))
+
 
 # Load updated 0, 3, 6, 9, and 12 month survey data
 # This will include rows where participants were not randomized to a treatment
