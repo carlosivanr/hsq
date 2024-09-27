@@ -1,0 +1,36 @@
+---
+title: "End of study payment report"
+author: "Carlos Rodriguez"
+format: docx
+---
+
+
+```{r}
+pacman::p_load(REDCapR,
+               here,
+               tidyverse,
+               magrittr, install = FALSE)
+```
+
+```{r}
+# update the master file
+source(here("scripts/HSQ end of study payments.R"))
+```
+
+```{r}
+update %>%
+  select(-record_id) %>% 
+    rename(`HSQ Study ID` = hsqid,
+         `Randomization date` = randomization_dtd,
+         `SMS surveys completed` = smssurvey_count,
+         `Remaining SMS payments` = remaining_sms_payments,
+         `Completed all 36 SMS` = all_36_sms_complete,
+         
+         
+         
+         
+    )
+
+flextable::flextable(update)
+```
+

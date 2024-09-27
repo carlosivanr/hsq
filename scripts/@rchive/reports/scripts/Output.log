@@ -1,0 +1,22 @@
+The following package(s) are missing their DESCRIPTION files:
+- vctrs [C:/Users/rodrica2/OneDrive - The University of Colorado Denver/Documents/DFM/projects/hsq/HSQ-Reports/renv/library/R-4.2/x86_64-w64-mingw32/vctrs]
+These may be left over from a prior, failed installation attempt.
+Consider removing or reinstalling these packages.
+
+- One or more packages recorded in the lockfile are not installed.
+- Use `renv::status()` for more details.
+The following package(s) are missing their DESCRIPTION files:
+- vctrs [C:/Users/rodrica2/OneDrive - The University of Colorado Denver/Documents/DFM/projects/hsq/HSQ-Reports/renv/library/R-4.2/x86_64-w64-mingw32/vctrs]
+These may be left over from a prior, failed installation attempt.
+Consider removing or reinstalling these packages.
+
+- One or more packages recorded in the lockfile are not installed.
+- Use `renv::status()` for more details.
+Error in loadNamespace(i, c(lib.loc, .libPaths()), versionCheck = vI[[i]]) : 
+  there is no package called 'vctrs'
+Calls: source ... loadNamespace -> withRestarts -> withOneRestart -> doWithOneRestart
+In addition: Warning message:
+In pacman::p_load(tidyverse, magrittr, writexl, install = FALSE) :
+  Failed to install/load:
+tidyverse
+Execution halted
