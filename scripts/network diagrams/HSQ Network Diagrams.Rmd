@@ -10,9 +10,7 @@ knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
 library(egor) #for diagrams
 library(here) #for sharing this RProject
 library(tidyverse) #for data wrangling
-library(purrr) 
 library(network) #for diagrams
-library(ggplot2) #for diagrams
 library(igraph) #for diagrams
 
 #your API token
@@ -93,9 +91,11 @@ mytriangle <- function(coords, v=NULL, params) {
 # clips as a circle
 add_shape("triangle", clip=shapes("circle")$clip,
           plot=mytriangle)
+```
 
-####### Baseline PNA #####
 
+## Baseline PNA
+```{r setup, include=FALSE}
 #pull report "ACTION: Needs Network Diagram Baseline"
 url <- "https://redcap.ucdenver.edu/api/"
 formData <- list("token"=.token,
@@ -108,6 +108,7 @@ formData <- list("token"=.token,
                  exportCheckboxLabel='false',
                  returnFormat='json'
 )
+
 response <- httr::POST(url, body = formData, encode = "form")
 needs_diagram_baseline <- httr::content(response)
 
@@ -123,7 +124,7 @@ pna_baseline <- wrangle_pna(needs_diagram_baseline,
 records <- as.vector(as.numeric(pna_baseline$ego$.egoID))
 
 #this loop creates and uploads a network diagram for all of these records
-for(i in records){
+for (i in records) {
   #select data for nodes and links
   nodes <- pna_baseline$alter %>% 
     filter(.egoID == i) %>% 
@@ -202,14 +203,11 @@ for(i in records){
                                       redcap_uri = url,
                                       token = .token)
   unlink(SimplePlot.file)
-  
 }
 ```
 
 
 ## 12-month PNA
-
-
 ```{r 12m-diagram-data}
 #pull report "ACTION: Needs Network Diagram 12 - Month" from REDCap
 url <- "https://redcap.ucdenver.edu/api/"
