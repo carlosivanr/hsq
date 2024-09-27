@@ -1007,7 +1007,6 @@ flat_lst <- bind_rows(
   data_lst[[5]]
 )
 
-
 flat_lst %>%
   mutate_if(is.Date, as.character) %>%
   mutate_if(is.difftime, as.numeric) %>%
