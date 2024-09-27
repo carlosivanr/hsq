@@ -27,7 +27,7 @@ library(magrittr, include.only = "%<>%")
 # generates and then uploads their diagrams back to RedCap. This is a required
 # step before proceeding with the remainder of this script.
 # n.b. may error out if there are no participants that need qualitative diagrams
-rmarkdown::render("C:/Users/rodrica2/OneDrive - The University of Colorado Denver/Documents/DFM/projects/hsq/scripts/dyad reports/qualitative_diagrams.Rmd")
+# rmarkdown::render("C:/Users/rodrica2/OneDrive - The University of Colorado Denver/Documents/DFM/projects/hsq/scripts/dyad reports/qualitative_diagrams.Rmd")
 ```
 
 ```{r, set tokens, include=FALSE}
