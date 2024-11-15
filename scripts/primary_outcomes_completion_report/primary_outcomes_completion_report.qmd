@@ -21,14 +21,10 @@ execute:
 # This report is designed to count frequencies and proportions of the missing
 # and non-missing values for the primary and secondary outcomes as defined in
 # the statistical analysis plan.
+
 # In addition, this report scores and summarizes the instruments used in the HSQ
 # surveys. Finally, this report will export .csv files for importing into SAS.
 ################################################################################
-```
-
-```{r}
-# For VS Code
-# renv::load("C:/Users/rodrica2/OneDrive - The University of Colorado Denver/Documents/DFM/projects/hsq/Helpers-Stay-Quit/renv_library")
 ```
 
 ```{r, load libraries, include=FALSE}

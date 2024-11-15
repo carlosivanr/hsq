@@ -268,9 +268,7 @@ data %>%
          statusId = str_c("pending_contact_", arm, "_", gender)) %>%
   select(-gender_bin_m) %>%
   arrange(gender, desc(n_weeks_partic)) %>%
-  writexl::write_xlsx(., path = here(str_c("dyad_report_", Sys.Date(), ".xlsx")))
-
-  
+  writexl::write_xlsx(., path = here("scripts", "dyad reports", str_c("dyad_report_", Sys.Date(), ".xlsx")))
 ```
 
 

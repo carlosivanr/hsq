@@ -1,0 +1,12 @@
+
+NOTE: Dependency discovery took 13 seconds during snapshot.
+Consider using .renvignore to ignore files, or switching to explicit snapshots.
+See `?renv::dependencies` for more information.
+
+Error in file(filename, "r", encoding = encoding) : 
+  cannot open the connection
+Calls: source -> file
+In addition: Warning message:
+In file(filename, "r", encoding = encoding) :
+  cannot open file 'C:/Users/rodrica2/OneDrive - The University of Colorado Denver/Documents/DFM/projects/hsq/scripts/sms/HSQ SMS gift cards.R': No such file or directory
+Execution halted

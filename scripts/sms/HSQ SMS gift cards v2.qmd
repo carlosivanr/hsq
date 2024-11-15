@@ -1,10 +1,17 @@
-library(tidyverse)
+---
+title: "HSQ: Gift card eligibility"
+author: "Camille J. Hochheimer, PhD"
+format: html
+editor: source
+---
 
+## Get REDCap Report Data
+```{r}
 # Source get_redcap_report function
 get_redcap_report <- function (token, report_id, labels = "raw")
 {
     url <- "https://redcap.ucdenver.edu/api/"
-
+ 
    formData <- list(token = token, content = "report", format = "csv",
         report_id = report_id, csvDelimiter = "", rawOrLabel = labels,
         rawOrLabelHeaders = "raw", exportCheckboxLabel = "false",
@@ -17,16 +24,32 @@ get_redcap_report <- function (token, report_id, labels = "raw")
     return(result)
 
 }
+```
 
+```{r}
+library(tidyverse)
+#token for sms project
 .sms_token <- Sys.getenv("HSQ_sms")
+#pull report 	"SMS Survey Count"
+
+
+
+
+
 texts <- get_redcap_report(token = .sms_token,
-                                     report_id = "89001")
-
+                            report_id = "89001")
+#create a dataset to upload into the HSQ Participant Management REDCap
 gc <- texts %>%
-  select(-redcap_event_name, -hsqid)
-
-
+  #need to get actual ID out of the hsqid it will match with the other RC
+  mutate(id = hsqid %% 100) %>% 
+  select(-redcap_event_name, -hsqid, -record_id) %>% 
+  rename(record_id = id)
+  
 #upload to REDCap
 REDCapR::redcap_write(gc,
                       redcap_uri = "https://redcap.ucdenver.edu/api/",
                       token = Sys.getenv("HSQ_api"))
+
+
+  
+```

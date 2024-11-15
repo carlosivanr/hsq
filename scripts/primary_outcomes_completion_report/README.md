@@ -23,4 +23,3 @@ The primary_outcomes_completion_report.qmd does the following:
     iv. Proactive coping scale
     v. COGDIS
     vi. Treatment Self Regulation Questionnaire (TSRQ)
-    vii. 

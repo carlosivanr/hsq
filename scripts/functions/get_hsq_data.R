@@ -26,7 +26,7 @@
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-get_hsq_data <- function(){
+get_hsq_data <- function() {
   # Set token for the hsq red cap project
   .token_hsq <- Sys.getenv("HSQ_api")
 
@@ -126,8 +126,12 @@ get_hsq_data <- function(){
   # names(survey_6mo)[!names(survey_6mo) %in% names(survey_3mo)]
 
   # contains ne* questions
-  survey_6mo$zip_code_ne <- as.numeric(survey_6mo$zip_code_ne)
-
+  # The script has been known to fail here because sometimes zip_code gets
+  # imported as numeric in one survey but character in another, which causes
+  # problems during bind_rows()
+  # survey_6mo$zip_code_ne <- as.numeric(survey_6mo$zip_code_ne)
+  survey_6mo %<>%
+    mutate(across(contains("_ne"), ~ as.character(.)))
 
   ############################## Survey_9mo ####################################
   # Set the report id to the 9 month report
@@ -177,6 +181,11 @@ get_hsq_data <- function(){
 
   # Replace the names of the columns to match baseline
   colnames(survey_12mo) <- names_to_replace
+
+  # convert all of the *_ne columns to character to facilitate bind_rows()
+  survey_12mo %<>%
+    mutate(across(contains("_ne"), ~ as.character(.)))
+
   #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
   ####### Stack and process data ------------------------------------------------

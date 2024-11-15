@@ -1,0 +1,10 @@
+While attempting to set up the HSQ- upload network diagrams script, two images were uploaded but the output of running the script indicated an error.
+
+Unsure which images were uploaded, and for what/which participant. Could have been two separate images for two participants or two images for one participant.
+
+Error in `filter()` at dplyr/R/mutate.R:146:2:
+ℹ In argument: `&...`.
+Caused by error in `across()`:
+! Can't subset columns past the end.
+ℹ Locations 2, 3, 4, …, 25, and 26 don't exist.
+ℹ There are only 0 columns.
