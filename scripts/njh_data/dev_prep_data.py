@@ -100,8 +100,11 @@ for x in files['file']:
 # Sort col_names to match the order in which they appear in the primary df
 col_names = col_names.sort_values(by = 'MDS Question Id')
 
-# Modify the SI 1 question, since it's long on the text and contains html
+# Modify the question text for those with a lot of text and/or contains html
 col_names.loc[col_names["MDS Question Id"] == 'SI 1', 'Question Text'] = "How may I help you today"
+col_names.loc[col_names["MDS Question Id"] == 'SI 18e', 'Question Text'] = "Are you American Indian or Alaska Native?"
+col_names.loc[col_names["MDS Question Id"] == 'OI 24', 'Question Text'] = "Do you consider yourself to be gay, lesbian or bisexual?"
+
 
 # Create a dictionary for renaming columns
 mapper = dict(zip(col_names["MDS Question Id"], col_names["Question Text"]))
@@ -109,3 +112,19 @@ mapper = dict(zip(col_names["MDS Question Id"], col_names["Question Text"]))
 # Create a new data frame with labeled columns by applying the mapper to the
 # column names
 data_labeled = data.rename(columns = mapper)
+
+# Output data to a .csv -------------------------------------------------------
+output_dir = '\\scripts\\njh_data\\'
+
+# Output the unlabeled data
+data_out = proj_root + output_dir + 'njh_data.csv'
+data.to_csv(data_out, index=False)
+
+# Output the labels for the data
+mapper = pd.DataFrame.from_dict(mapper, orient = 'index')
+mapper.index.name = 'question'
+mapper = mapper.rename(columns = {0: 'label'})
+mapper = mapper.reset_index()
+
+mapper_out = proj_root + output_dir + 'mapper.csv'
+mapper.to_csv(mapper_out)
