@@ -4,8 +4,6 @@ format: html
 editor: source
 ---
 
-## 
-
 ```{r}
 # Source get_redcap_report function
 get_redcap_report <- function (token, report_id, labels = "raw")
