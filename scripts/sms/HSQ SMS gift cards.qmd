@@ -2,7 +2,7 @@
 title: "HSQ: Gift card eligibility"
 author: "Camille J. Hochheimer, PhD"
 format: html
-editor: visual
+editor: source
 ---
 
 ## Get REDCap Report Data

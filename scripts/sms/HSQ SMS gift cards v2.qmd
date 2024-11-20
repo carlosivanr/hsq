@@ -12,7 +12,7 @@ get_redcap_report <- function (token, report_id, labels = "raw")
 {
     url <- "https://redcap.ucdenver.edu/api/"
  
-   formData <- list(token = token, content = "report", format = "csv",
+    formData <- list(token = token, content = "report", format = "csv",
         report_id = report_id, csvDelimiter = "", rawOrLabel = labels,
         rawOrLabelHeaders = "raw", exportCheckboxLabel = "false",
         returnFormat = "csv")
