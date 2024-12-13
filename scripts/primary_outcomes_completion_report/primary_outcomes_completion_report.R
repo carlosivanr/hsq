@@ -19,22 +19,31 @@ library(stringr)
 # an input to the quarto_render() function
 file_in <- here(
   "scripts/primary_outcomes_completion_report/primary_outcomes_completion_report.qmd"
-  )
+)
 
 # Render the report
 quarto_render(
   input = file_in
-  )
+)
 
-# Place a copy of the most recent report in the Egnyte folder
+# Place a copy of the most recent report in the Egnyte folder -----------------
+
 from <- here(
   "scripts/primary_outcomes_completion_report/primary_outcomes_completion_report.html"
-  )
+)
+
+print(getwd())
+
+print(from)
 
 to <- str_c(
   "Z:/Shared/DFM/HSQ_Shared/Reporting/Primary Outcome Completion Report/report_", 
-  Sys.Date(), 
+  Sys.Date(),
   ".html"
-  )
+)
 
-file.copy(from, to, overwrite = TRUE)
+print(to)
+
+file.exists(to)
+
+file.copy(from = from, to = to, overwrite = TRUE)
