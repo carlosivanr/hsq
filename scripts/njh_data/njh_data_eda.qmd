@@ -79,6 +79,8 @@ freq_prop(data, 'PrefLanguage')
 
 # Special Program
 ```{python}
+# *** Does a missing indicate traditional program"
+# If so, recode "Missing" to "Traditional".
 freq_prop(data, 'Special Program')
 ```
 
@@ -89,6 +91,7 @@ freq_prop(data, 'Coach Call Count')
 
 # Received NRT
 ```{python}
+# Nicotine Replacement Therapy
 freq_prop(data, 'Received NRT')
 ```
 
@@ -135,11 +138,15 @@ freq_prop(data, 'NJ 31')
 
 # During the past two weeks have you experienced any emotional challenges such as excessive stress, feeling depressed or anxious?
 ```{python}
+# *** Has a large percentage of missing.
+# Is this question only asked of certain states?
 freq_prop(data, 'NJ 33')
 ```
 
 # During the past two weeks have you experienced any emotional challenges that have interfered with your work, family life, or social activities?
 ```{python}
+# *** Has a large percentage of missing.
+# Is this question only asked of certain states?
 freq_prop(data, 'NJ 34')
 ```
 
@@ -148,19 +155,43 @@ freq_prop(data, 'NJ 34')
 freq_prop(data, 'OI 24')
 ```
 
+```{python}
+#| eval: false
+# When using the freq_prop() function with questions that are branched, input
+# a queried or filtered data frame as the main input
+
+data.ProtocolType == "Phone" # Produces an index
+data.query("ProtocolType == 'Phone'") # This works to filter
+
+data[data["OI 24"] == "Yes"] # This works to filter col with spaces
+
+# data.`OI 24` == 'Yes' # Does not work to filter or make an index
+
+# This version may work best to filter, because it's a bit more readable
+data.query("`OI 24` == 'Yes'") # This works to filter col with spaces
+
+freq_prop(data[data["OI 24"] == "Yes"], 'OI 24b')
+```
+
 ## Bisexual:
 ```{python}
+# *** Likely a branching question
 freq_prop(data, 'OI 24a')
+freq_prop(data.query("`OI 24` == 'Yes'"), 'OI 24a')
 ```
 
 ## Gay or lesbian:
 ```{python}
-freq_prop(data, 'OI 24b')
+# *** Likely a branching question
+# freq_prop(data, 'OI 24b')
+freq_prop(data.query("`OI 24` == 'Yes'"), 'OI 24b')
 ```
 
 ## Queer:
 ```{python}
+# *** Likely a branching question
 freq_prop(data, 'OI 24c')
+freq_prop(data.query("`OI 24` == 'Yes'"), 'OI 24c')
 ```
 
 # Bidis:
