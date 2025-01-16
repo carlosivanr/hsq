@@ -46,4 +46,6 @@ print(to)
 
 file.exists(to)
 
+# The names of the arguments and the paths are the same. Needs from = from and
+# to = to to make it explicity that the keyword is set to the input path.
 file.copy(from = from, to = to, overwrite = TRUE)

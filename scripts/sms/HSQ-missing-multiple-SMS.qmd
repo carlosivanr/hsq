@@ -1,0 +1,269 @@
+---
+title: "HSQ: Missing SMS Survey Report"
+
+date: "`r format(Sys.Date(), '%m-%d-%Y')`"
+
+format: 
+  docx:
+    reference-doc: "D:/PATHWEIGH/custom-reference-doc.docx"
+
+execute: 
+  echo: false
+
+---
+
+
+```{r, echo = FALSE}
+# PART 1 -----------------------------------------------------------------------
+# For those who have filled out any survey, grab the last date
+# Download and process sms and save as sms2
+# 1. Download data from report ID 89928
+#   - data is in long format, one row for each sms
+#   - each sms is 1 per week for the first 24 weeks, then 1 every other week for
+#     the remainder of the study
+# 2. Fill in the hsqid, smssurvey_count, randomization_dtd to empty cols
+# 3. Group by hsqid then fill miss_survey_contact_date & patientend_dtd
+# 4. Filter out rows where the patientend_dtd is empty
+# 5. Create sms_date by extracting the date from the time stamp
+# 6. Group by hsqid and slice the max date (the the row with the most recent
+#     sms survey date)
+# 7. Create days_since by first taking the difference between today's date and
+#     the sms date, then taking the difference between today's date and the
+#     miss_survey_date, and taking the minimum of those two values. This will
+#     give the most recent event, either the miss_survey_date or the sms_date.
+#     The lesser of the difference between today and the sms_date, or the miss_
+#     survey date. Out of the sms_survey_date and the date they were contacted,
+#     which is the most recent event (date of most recent event)
+#     - Days since can be conceptualized as days since last interaction with the
+#       study
+# 8. Create weeks_in_study - The number of weeks since the randomization date
+#     Gives how long the participant has been enrolled in the study
+# 9. Create two_surveys - Has the participant missed two surveys?
+# 10. Create last_survey - Gets the week of the most recent completed survey
+
+
+# PART 2 -----------------------------------------------------------------------
+# for those who have not completed any surveys or ended, grab their
+#   randomization date, process sms, and save as sms4
+# 1. start with SMS and filter out rows where the record_id is in sms2 and where
+#     the patient_end_date is not missing. These are participants that are still
+#     in the study, but have not filled out an sms survey at all.
+#     *** This may not be working, because one would expect recent enrollments
+#     based on randomization date, but instead there are rows where the
+#     randomization was as far back as 2023, and they still have a missing,
+#     patient end date.
+# !!!! The following steps are just like 7, 8, 9, and 10 above
+# 2. Create days_since by first taking the difference between today's date and
+#     the sms date, then taking the difference between todays date and the
+#     miss_survey_date, and taking the minimum of those two values. This will
+#     give the most recent event, either the miss_survey_date or the sms_date.
+#     The lesser of the difference between today and the sms_date, or the miss_
+#     survey date. Out of the sms_survey_date and the date they were contacted,
+#     which is the most recent event (date of most recent event)
+# 3. Create weeks_in_study - The number of weeks since the randomization date
+#     Gives how long the participant has been enrolled in the study
+# 4. Create two_surveys - Has the participant missed two surveys?
+# 5. Create last_survey - Gets the week of the most recent completed survey
+
+# PART 3 -----------------------------------------------------------------------
+# 1. stack/bind rows from PART 1 and PART 2
+# 2. Filter rows where the participant has missed two_sms_surveys and the amount
+#     of time they have been in the study is less than 48 weeks.
+# 3. convert hsqid to character
+# 4. Remove -record_id, -two_surveys, and -weeks_in_study
+# 5. Rename columns
+# 6. Display the remaining data as a table in a Word doc hence .Rmd
+
+```
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+library(tidyverse)
+#pull in SMS dates report from HSQ SMS Survey report
+.sms_token <- Sys.getenv("HSQ_sms")
+url <- "https://redcap.ucdenver.edu/api/"
+formData <- list(token = .sms_token, content = "report", format = "csv",
+                 report_id = "89928", csvDelimiter = "", rawOrLabel = "raw",
+                 rawOrLabelHeaders = "raw", exportCheckboxLabel = "false",
+                 returnFormat = "csv")
+response <- httr::POST(url, body = formData, encode = "form")
+
+sms <- httr::content(response)
+```
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+#for those who have filled out any survey, grab the last date
+sms2 <-
+  sms %>%
+  fill(hsqid, smssurvey_count,
+       randomization_dtd) %>%
+  group_by(hsqid) %>%
+  fill(miss_survey_contact_date, patientend_dtd) %>%
+  #keep only people without end date
+  filter(is.na(patientend_dtd)) %>%
+  ungroup() %>%
+  # Create sms_date by extracting the date from the time stamp
+  mutate(sms_date = as.Date(
+                            lubridate::ymd(
+                              substr(
+                                     as.character(sms_survey_timestamp), 1, 10)
+                            ))) %>%
+  # For each participant, slice the most recent date
+  group_by(record_id) %>%
+  slice(which.max(sms_date))
+```
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+sms2 <-
+  sms2 %>%
+  # Create 4 new variables
+  # 1. days_since - Minimum (most recent) number of days since the last contact
+  #    date or the sms_date(survey time stamp)
+  # 2. weeks_in_study - The number of weeks since the randomization date the
+  #    participant has been enrolled in the study
+  # 3. two_surveys - Has the participant missed two surveys?
+  # 4. last_survey - Gets the week of the most recent survey
+  mutate(
+         # days_since = min(lubridate::today(tzone = "MST") - sms_date,
+         #                  lubridate::today(tzone = "MST") - miss_survey_contact_date,
+         #                  na.rm = TRUE),
+         days_since = lubridate::today(tzone = "MST") - sms_date,
+         weeks_in_study = lubridate::interval(randomization_dtd,
+                                              lubridate::today(tzone = "MST")) %/% weeks(1),
+         # if they have been in the study 24 weeks or less, look 14 days back
+         two_surveys = case_when(
+                                 weeks_in_study <= 24 & days_since >= 14 ~ "Yes",
+                                 weeks_in_study <= 24 & days_since < 14 ~ "No",
+                                 #at week 25, look 21 days back
+                                 weeks_in_study == 25 & days_since >= 21 ~ "Yes",
+                                 weeks_in_study == 25 & days_since < 21 ~ "No",
+                                 #after week 25, look 28 days back
+                                 weeks_in_study > 25 & days_since >= 28 ~ "Yes",
+                                 weeks_in_study > 25 & days_since < 28 ~ "No"),
+         last_survey = sub("\\_.*", "", redcap_event_name)) %>%
+  ungroup()
+```
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+sms2 <-
+  sms2 %>%
+  select(record_id, hsqid, randomization_dtd,
+         weeks_in_study,
+         smssurvey_count, sms_date,
+         last_survey, miss_survey_contact_date,
+         days_since, two_surveys)
+```
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+# for those who have not completed any surveys or ended, grab their
+# randomization date
+sms3 <-
+  # same as filter(!record_id %in% sms2$record_id, is.na(patientend_dtd)) %>%
+  subset(sms, !(record_id %in% sms2$record_id) & is.na(patientend_dtd)) %>%
+  mutate(days_since = lubridate::today(tzone = "MST") - randomization_dtd,
+         weeks_in_study =
+         lubridate::interval(randomization_dtd,
+                             lubridate::today(tzone = "MST")) %/% weeks(1),
+         two_surveys = case_when(days_since >= 16 ~ "Yes",
+                                 days_since < 16 ~ "No"),
+         last_survey = sub("\\_.*", "", redcap_event_name)) %>%
+  select(record_id, hsqid, randomization_dtd,
+         weeks_in_study,
+         smssurvey_count, last_survey,
+         days_since, two_surveys)
+```
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+#combine sms2 and sms 3
+sms4 <-
+  # sames as bind_rows(sms2, sms3)
+  full_join(sms2, sms3)
+```
+
+```{r, echo = FALSE}
+# Check the ids in Janet's list
+ids_to_check <- c(90332, 90349, 40416, 80432, 50457, 50481,70529, 100631,
+                  70651, 10657, 10670, 30750, 10752)
+
+janets_list <- sms4 %>% 
+  filter(hsqid %in% ids_to_check)
+```
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+sms4 <-
+  sms4 %>%
+  #if they have missed two surveys then pull that person's ID
+  #if they are past 48 weeks, they are done
+  filter(two_surveys == "Yes" & weeks_in_study <= 48) %>%
+  mutate(hsqid = as.character(hsqid)) %>%
+  select(-record_id, -two_surveys, -weeks_in_study) %>%
+  rename(`HSQ Study ID` = hsqid,
+         `Randomization date` = randomization_dtd,
+         `SMS surveys completed` = smssurvey_count,
+         `Date last survey completed` = sms_date,
+         `Last survey` = last_survey,
+         `Date last contacted` = miss_survey_contact_date,
+         `Days since randomization/last survey/last contact` = days_since)
+```
+
+```{r, echo = FALSE}
+# flextable::flextable(sms4)
+```
+
+```{r, echo = FALSE}
+# Load in individuals that no longer wish to be contacted
+if (file.exists("Z:/Shared/DFM/HSQ_Shared/Reporting/2 week SMS report/SMS_reminder_call_contact_list.csv")) {
+  contact_list <-
+    read_csv("Z:/Shared/DFM/HSQ_Shared/Reporting/2 week SMS report/SMS_reminder_call_contact_list.csv",
+             show_col_types = FALSE)
+
+  contact_yes <- contact_list %>%
+    filter(contact == 1)
+
+  # Remove individuals that do not want to be contacted from sms4
+  sms4 <- sms4 %>%
+    filter(`HSQ Study ID` %in% contact_yes$hsqid)
+
+  #print out the table
+  flextable::flextable(sms4)
+
+} else {
+  stop("The contact list cannot be found at Z:/Shared/DFM/HSQ_Shared/Reporting/2 week SMS report/SMS_reminder_call_contact_list.csv. Please verify the file is in place")
+}
+```
+
+```{r, eval = FALSE, echo = FALSE}
+# There are some individuals who should appear in the contact list but do not
+# Check the following
+# 90332
+
+# 90349
+
+# 40416
+
+# 80432
+
+# 50457
+
+# 50481
+
+# 70529
+
+# 100631
+
+# 70651
+
+# 10657
+
+# 10670
+
+# 30750
+
+# 10752
+```
