@@ -1,0 +1,213 @@
+---
+title: "HSQ Alter Survey"
+date: today
+format:
+  html:
+    toc: true
+    html-math-method: katex
+    embed-resources: true
+
+execute:
+  echo: false
+  warning: false
+---
+
+```{r, echo = FALSE, eval = FALSE}
+################################################################################
+# Carlos Rodriguez, PhD. CU Anschutz, Dept. of Fam. Medicine
+# Helpers stay quit - Alter survey report
+
+# This report is designed to count frequencies and proportions of the missing
+# and non-missing values for the primary and secondary outcomes as defined in
+# the statistical analysis plan.
+
+# In addition, this report scores and summarizes the instruments used in the HSQ
+# surveys. Finally, this report will export .csv files for importing into SAS.
+################################################################################
+```
+
+```{r, load libraries, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+library(magrittr, include = "%<>%")
+pacman::p_load(here,
+               tidyverse,
+               gtsummary,
+               gt,
+               install = FALSE)
+```
+
+```{r}
+source(here("scripts/functions/get_redcap_data.R" ))
+```
+
+```{r}
+data <- get_redcap_data(26172)
+
+data %<>%
+  filter(asking_for_your_feedback_complete == 2)
+```
+
+# Number of completed records
+```{r}
+data %>%
+  select(asking_for_your_feedback_complete) %>%
+  tbl_summary()
+```
+
+# When you talked with participant about smoking, which of the following did you discuss?
+```{r}
+data %<>%
+  mutate(a4_cat = factor(
+    recode(a4, 
+           `0` = "Reason to quit (cost; health risks and benefits)",
+           `1` = "Readiness to quit",
+           `2` = "How they might help you quit",
+           `3` = "Offered handouts or materials",
+           `4` = "Medications that help quitting (like nicotine patches or prescription meds)",
+           `5` = "Referral to a quitline",
+           `6` = "Other"), 
+    levels = c("Reason to quit (cost; health risks and benefits)",
+              "Readiness to quit",
+              "How they might help you quit",
+              "Offered handouts or materials",
+              "Medications that help quitting (like nicotine patches or prescription meds)",
+              "Referral to a quitline",
+              "Other")))
+```
+
+
+```{r}
+data %>%
+  select(a4_cat) %>%
+  tbl_summary(label = a4_cat ~ "Topics discussed")
+```
+
+
+```{r}
+data %>%
+  filter(a4_cat == "Other") %>%
+  mutate(a4_other = ifelse(is.na(a4_other), "Unknown", a4_other)) %>%
+  select(a4_other) %>% 
+  tbl_summary(label = a4_other ~ "Other topics")
+```
+
+# How would you describe your smoking status?	
+```{r}
+data %<>%
+  mutate(a5_cat = factor(
+    recode(a5, 
+           `0` = "I quit in the last 6 months",
+           `1` = "I quit in the last 30 days",
+           `2` = "I am ready to quit",
+           `3` = "I am thinking about quitting in the next 30 days",
+           `4` = "MedicationsI am ready to quit in the next 6 months",
+           `5` = "I am not ready to quit",
+           `6` = "I was never a smoker"), 
+    levels = c("I quit in the last 6 months",
+              "I quit in the last 30 days",
+              "I am ready to quit",
+              "I am thinking about quitting in the next 30 days",
+              "I am ready to quit in the next 6 months",
+              "I am not ready to quit",
+              "I was never a smoker")))
+```
+
+```{r}
+data %>%
+  select(a5_cat) %>%
+  mutate(a5_cat = fct_na_value_to_level(a5_cat, level = "Unknown")) %>%
+  tbl_summary(label = a5_cat ~ "Describe smoking status")
+```
+
+# Was this your ﬁrst conversation with participant about smoking?
+```{r}
+data %<>%
+  mutate(a6_cat = factor(recode(a6, 
+                         `0` = 'No',
+                         `1` = "Yes",
+                         `2` = "I don't remember"),
+                         levels = c("No", "Yes", "I don't remember")))
+```
+
+
+```{r}
+data %>%
+select(a6_cat) %>%
+  tbl_summary(label = a6_cat ~ "First smoking conversation")
+```
+
+# Did you do anything diﬀerently since talking to participant about smoking?
+```{r}
+data %<>%
+  mutate(a7_cat = factor(recode(a7, 
+                         `0` = 'No',
+                         `1` = "Yes"),
+                         levels = c("No", "Yes")))
+```
+
+```{r}
+data %>%
+  select(a7_cat) %>%
+  tbl_summary(label = a7_cat ~ "Yes")
+```
+
+## What did you do diﬀerent?
+```{r}
+data %>%
+  filter(a7_cat == "Yes") %>%
+  select(a7_what) %>%
+  mutate(a7_what = ifelse(is.na(a7_what), "Unknown", a7_what)) %>%
+  tbl_summary(label = a7_what ~ "What did you do different")
+
+```
+
+# Has your smoking status changed?
+```{r}
+data %<>%
+  mutate(a8_cat = factor(recode(a8, 
+                         `0` = 'No',
+                         `1` = "Yes, I have quit",
+                         `2` = "Yes, I am thinking about quitting"),
+                         levels = c("No", "Yes", "Yes, I am thinking about quitting")))
+```
+
+
+```{r}
+data %>%
+  select(a8_cat) %>%
+  mutate(a8_cat = fct_na_value_to_level(a8_cat, level = "Unknown")) %>%
+  tbl_summary()
+```
+
+# Was it helpful having a conversation with participant?
+```{r}
+data %<>%
+  mutate(a9_cat = factor(recode(a9, 
+                         `0` = 'Extremely',
+                         `1` = "Very",
+                         `2` = "Moderately",
+                         `3` = "Slightly",
+                         `4` = "Not at all"),
+                         levels = c('Extremely', "Very", "Moderately", "Slightly","Not at all")))
+```
+
+```{r}
+data %>%
+  select(a9_cat) %>%
+  tbl_summary(label = a9_cat ~ "Helpful")
+```
+
+# How would you feel about having another conversation with participant about smoking in the future?
+```{r}
+data %>%
+  select(a10) %>%
+  tbl_summary(label = a10 ~ "Feelings about future conversations")
+```
+
+# Is there anything else you want to say about your conversation with participant?
+```{r}
+data %>%
+  select(a11) %>%
+  tbl_summary(label = a11 ~ "Additional comments")
+```
+
