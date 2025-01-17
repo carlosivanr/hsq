@@ -9,7 +9,6 @@ format:
 
 execute: 
   echo: false
-
 ---
 
 
@@ -90,7 +89,6 @@ response <- httr::POST(url, body = formData, encode = "form")
 
 sms <- httr::content(response)
 ```
-
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
 #for those who have filled out any survey, grab the last date
@@ -218,10 +216,18 @@ sms4 <-
 
 ```{r, echo = FALSE}
 # Load in individuals that no longer wish to be contacted
-if (file.exists("Z:/Shared/DFM/HSQ_Shared/Reporting/2 week SMS report/SMS_reminder_call_contact_list.csv")) {
-  contact_list <-
-    read_csv("Z:/Shared/DFM/HSQ_Shared/Reporting/2 week SMS report/SMS_reminder_call_contact_list.csv",
-             show_col_types = FALSE)
+
+# Use one of two path formats, either using escape characters with mapped letter drive or
+# escape characters with UNC Path
+
+# UNC path version, works with file.exists
+# csv_file_path <- "\\\\EgnyteDrive\\ucdenver\\Shared\\DFM\\HSQ_Shared\\Reporting\\2 week SMS report\\SMS_reminder_call_contact_list.csv"
+
+# This path works in file.exists
+csv_file_path <- "Z:\\Shared\\DFM\\HSQ_Shared\\Reporting\\2 week SMS report\\SMS_reminder_call_contact_list.csv"
+
+if (file.exists(csv_file_path)) {
+  contact_list <- read_csv(csv_file_path, show_col_types = FALSE)
 
   contact_yes <- contact_list %>%
     filter(contact == 1)
@@ -234,36 +240,9 @@ if (file.exists("Z:/Shared/DFM/HSQ_Shared/Reporting/2 week SMS report/SMS_remind
   flextable::flextable(sms4)
 
 } else {
-  stop("The contact list cannot be found at Z:/Shared/DFM/HSQ_Shared/Reporting/2 week SMS report/SMS_reminder_call_contact_list.csv. Please verify the file is in place")
+  stop("The no-contact list .csv file cannot be found. Please verify the file is in the .qmd file directory.")
 }
 ```
 
 ```{r, eval = FALSE, echo = FALSE}
-# There are some individuals who should appear in the contact list but do not
-# Check the following
-# 90332
-
-# 90349
-
-# 40416
-
-# 80432
-
-# 50457
-
-# 50481
-
-# 70529
-
-# 100631
-
-# 70651
-
-# 10657
-
-# 10670
-
-# 30750
-
-# 10752
 ```
