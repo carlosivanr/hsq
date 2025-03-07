@@ -11,6 +11,14 @@ execute:
   echo: false
 ---
 
+```{r}
+#N.B. This is a version of the missing sms survey for 2-weeks that is set to run
+# automatically on HPC18.
+
+# If anything is updated here, it must also be updated in the .RMD file that is
+# on Janet's machine to ensure both outputs are the same.
+```
+
 
 ```{r, echo = FALSE}
 # PART 1 -----------------------------------------------------------------------
@@ -75,19 +83,96 @@ execute:
 
 ```
 
-
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
 library(tidyverse)
 #pull in SMS dates report from HSQ SMS Survey report
 .sms_token <- Sys.getenv("HSQ_sms")
 url <- "https://redcap.ucdenver.edu/api/"
+
 formData <- list(token = .sms_token, content = "report", format = "csv",
                  report_id = "89928", csvDelimiter = "", rawOrLabel = "raw",
                  rawOrLabelHeaders = "raw", exportCheckboxLabel = "false",
                  returnFormat = "csv")
+
 response <- httr::POST(url, body = formData, encode = "form")
 
 sms <- httr::content(response)
+
+sms <- read_csv(httr::content(response, as = "text"),
+                col_types = cols(
+                  record_id = col_double(),
+                  redcap_event_name = col_character(),
+                  redcap_survey_identifier = col_logical(),
+                  hsqid = col_double(),
+                  randomization_dtd = col_date(format = "%Y-%m-%d"),
+                  sms_strt_dtd = col_character(),
+                  smssurvey_count = col_double(),
+                  sms_survey_timestamp = col_character(),
+                  sms_survey_complete = col_double(),
+                  miss_survey_contact_date = col_date(format = "%Y-%m-%d"),
+                  patientend_dtd = col_date(format = "%Y-%m-%d"),
+                  miss_survey_contact_date_2 = col_date(format = "%Y-%m-%d"),
+                  miss_survey_contact_date_3 = col_date(format = "%Y-%m-%d"),
+                  miss_survey_contact_date_4 = col_date(format = "%Y-%m-%d"),
+                  miss_survey_contact_date_5 = col_date(format = "%Y-%m-%d"),
+                  miss_survey_contact_date_6 = col_date(format = "%Y-%m-%d")))
+
+```
+
+
+```{r}
+# TEST UPLOADING TO REDCAP VIA API
+# file <- "C:\\Users\\rodrica2\\OneDrive - The University of Colorado Denver\\Documents\\DFM\\projects\\hsq\\file_upload_test.csv"
+# formData <- list(token=.sms_token,
+#     action='import',
+#     content='fileRepository',
+#     folder_id = "732",
+#     returnFormat='csv',
+#     file=httr::upload_file(file)
+# )
+# response <- httr::POST(url, body = formData, encode = "multipart")
+# result <- httr::content(response)
+# print(result)
+
+# token <- "B8CFCBBE41DA33F4D81C5E70EE077853"
+# url <- "https://redcap.ucdenver.edu/api/"
+# formData <- list("token"=token,
+#     content='fileRepository',
+#     action='list',
+#     format='csv',
+#     folder_id='',
+#     returnFormat='csv'
+# )
+# response <- httr::POST(url, body = formData, encode = "form")
+# result <- httr::content(response)
+# print(result)
+```
+
+```{r}
+# Drop participants that either have been contacted 5 times, or that no longer
+# wish to be contacted
+# miss_survey_contact_date_5 indicates they have been contacted 5x
+# same value in miss survey date fields 1-5 indicates participant does not want
+# to be contacted
+# miss_survey_contact_date_6 indicates a non-working number
+test <- sms %>%
+  group_by(record_id) %>%
+  fill(starts_with("miss_survey"), .direction = "updown") %>%
+  slice_head() %>%
+  ungroup() %>%
+  filter(!is.na(miss_survey_contact_date_5) | !is.na(miss_survey_contact_date_6))
+
+# write_csv(test, file = "contacted_5x_OR_wrong_num.csv")
+
+# Fill in the missing survey date fields to all events
+sms <- sms %>%
+  group_by(record_id) %>%
+  fill(starts_with("miss_survey"), .direction = "updown") %>%
+  ungroup() 
+  
+# Filter for the records where the missing survey 5 and 6 dates are empty
+sms <- sms %>%
+  filter(is.na(miss_survey_contact_date_5) & is.na(miss_survey_contact_date_6))
 ```
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
@@ -101,6 +186,8 @@ sms2 <-
   #keep only people without end date
   filter(is.na(patientend_dtd)) %>%
   ungroup() %>%
+  # Avoid the parsing warnings due to "[not completed]" in sms_survey_timestamp
+  mutate(sms_survey_timestamp = ifelse(sms_survey_timestamp == "[not completed]", NA, sms_survey_timestamp)) %>%
   # Create sms_date by extracting the date from the time stamp
   mutate(sms_date = as.Date(
                             lubridate::ymd(
@@ -111,7 +198,6 @@ sms2 <-
   group_by(record_id) %>%
   slice(which.max(sms_date))
 ```
-
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
 sms2 <-
@@ -155,6 +241,9 @@ sms2 <-
          days_since, two_surveys)
 ```
 
+```{r}
+# write_csv((sms2 %>% filter(hsqid %in% c(50648, 10649, 10670))), file = here::here("sms2.csv"))
+```
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
 # for those who have not completed any surveys or ended, grab their
@@ -184,12 +273,12 @@ sms4 <-
 ```
 
 ```{r, echo = FALSE}
-# Check the ids in Janet's list
-ids_to_check <- c(90332, 90349, 40416, 80432, 50457, 50481,70529, 100631,
-                  70651, 10657, 10670, 30750, 10752)
+# # Check the ids in Janet's list
+# ids_to_check <- c(90332, 90349, 40416, 80432, 50457, 50481, 70529, 100631,
+#                   70651, 10657, 10670, 30750, 10752)
 
-janets_list <- sms4 %>% 
-  filter(hsqid %in% ids_to_check)
+# janets_list <- sms4 %>% 
+#   filter(hsqid %in% ids_to_check)
 ```
 
 
@@ -242,7 +331,4 @@ if (file.exists(csv_file_path)) {
 } else {
   stop("The no-contact list .csv file cannot be found. Please verify the file is in the .qmd file directory.")
 }
-```
-
-```{r, eval = FALSE, echo = FALSE}
 ```

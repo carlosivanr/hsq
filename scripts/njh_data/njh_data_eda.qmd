@@ -12,6 +12,7 @@ execute:
 ```{python}
 import pandas as pd
 from great_tables import GT, md, html
+from pyprojroot import here
 ```
 
 ```{python}
@@ -41,20 +42,48 @@ def freq_prop(df, col_name):
 ```
 
 ```{python}
+def summarize(data, column):
+    """
+    Generate a table with the mean and standard deviation of a continuous variable.
+
+    Parameters:
+    - data (pd.DataFrame): The dataset
+    - column (str): The name of the continuous variable
+
+    Returns:
+    - GT object displaying the mean and standard deviation
+    """
+    N = data[column].notna().sum().astype(str)
+
+    summary = (GT(pd.DataFrame({
+    "Characteristic": [column],
+    "Value": [f"{data[column].mean():.2f} ({data[column].std():.2f})"]
+    }).rename(columns = {"Value":("N = " + N )}))
+    .tab_source_note(source_note=html("<sup>1</sup> Mean (SD)")))
+
+    return summary
+```
+
+```{python}
 # Load the data file
-data = pd.read_csv('C:\\Users\\rodrica2\\OneDrive - The University of Colorado Denver\\Documents\\DFM\\projects\\hsq\\scripts\\njh_data\\njh_data.csv', header = 0)
+data = pd.read_csv(here("scripts/njh_data/njh_data.csv"), header = 0)
 ```
 
 ```{python}
 # Load the mapper
-mapper = pd.read_csv('C:\\Users\\rodrica2\\OneDrive - The University of Colorado Denver\\Documents\\DFM\\projects\\hsq\\scripts\\njh_data\\mapper.csv', header = 0)
+# The mapper file has the mapping between the question text/label and the column name
+mapper = pd.read_csv(here("scripts/njh_data/mapper.csv"), header = 0)
 ```
 
 # Total number of participants
 ```{python}
-GT(pd.DataFrame({'Number of participants': [data.shape[0]]})
-    .reset_index(drop = True)
-    )
+# Display the total number of rows in the NJH data set
+GT(pd.DataFrame.from_dict({'Number of participants': [len(data)]}))
+```
+
+# State Client
+```{python}
+freq_prop(data, 'State Client')
 ```
 
 # Gender
@@ -79,8 +108,7 @@ freq_prop(data, 'PrefLanguage')
 
 # Special Program
 ```{python}
-# *** Does a missing indicate traditional program"
-# If so, recode "Missing" to "Traditional".
+data["Special Program"] = data["Special Program"].fillna("Traditional")
 freq_prop(data, 'Special Program')
 ```
 
@@ -97,39 +125,271 @@ freq_prop(data, 'Received NRT')
 
 # Received Bupropion
 ```{python}
+# Missing indicates true. Recode NAs and convert False to No
+data["Received Bupropion"] = data["Received Bupropion"].fillna("Yes")
+data["Received Bupropion"] = data["Received Bupropion"].replace(False, "No")
 freq_prop(data, 'Received Bupropion')
 ```
 
 # Received Varenicline
 ```{python}
+# Missing indicates true. Recode NAs and convert False to No
+data["Received Varenicline"] = data["Received Varenicline"].fillna("Yes")
+data["Received Varenicline"] = data["Received Varenicline"].replace(False, "No")
 freq_prop(data, 'Received Varenicline')
 ```
 
 # Age Started Tobacco
 ```{python}
+#| eval: false
 freq_prop(data, 'Age Started Tobacco')
 ```
 
-# Cigarettes Per Day
 ```{python}
-freq_prop(data, 'Cigarettes Per Day')
+summarize(data[data['Age Started Tobacco'] != 0], 'Age Started Tobacco')
 ```
 
-# Cigars Per Week
+# How may I help you today
 ```{python}
-freq_prop(data, 'Cigars Per Week')
+freq_prop(data, 'SI 1')
 ```
 
-# Pipes Per Week
+
+# How did you hear about the ASHLine?
 ```{python}
-freq_prop(data, 'Pipes Per Week')
+freq_prop(data, 'SI 3')
 ```
 
-# Pouch Per Week
+# What types of commercial tobacco products have you used in the past 30 days
+<!-- ------------------- CIGARETTES START --------------------------------- -->
+## Cigarettes:
 ```{python}
-# The name of this column contains a trailing space
-freq_prop(data, 'Pouch Per Week ')
+freq_prop(data, 'SI 5a')
 ```
+
+#### Do you currently smoke cigarettes every day, some days, or not at all? 
+```{python}
+freq_prop(data, 'SI 6a')
+```
+
+### Cigarettes Per Day
+- Branches fro SI 5a
+```{python}
+#| eval: false
+# Better to show this as mean rather than frequency
+freq_prop(data, 'Cigarettes Per Day (SI 7a)')
+```
+
+```{python}
+summarize(data, 'Cigarettes Per Day (SI 7a)')
+```
+
+### Are the cigarettes you usually smoke menthol cigarettes?
+- Branches from SI 5a
+```{python}
+freq_prop(data, 'OI 7a-1')
+```
+
+### How soon after you wake, do you smoke your first cigarette?
+```{python}
+freq_prop(data, 'SI 9')
+```
+
+### Do you intend to quit using cigarettes within the next 30 days? 
+```{python}
+freq_prop(data, 'SI 10a')
+```
+<!-- ------------------- CIGARETTES STOP ---------------------------------- -->
+
+
+
+
+<!-- ---------------------- CIGARS START ---------------------------------- -->
+## Cigars, cigarillos, or small cigars:
+```{python}
+freq_prop(data, 'SI 5b')
+```
+
+### Do you currently smoke cigars every day, some days, or not at all?
+- Branches from SI 5b
+```{python}
+freq_prop(data.query("`SI 5b` == 'Yes'"), 'SI 6b')
+```
+
+### Cigars Per Week
+- Branches from SI 5b
+```{python}
+freq_prop(data.query("`SI 5b` == 'Yes'"), 'Cigars Per Week (SI 7b)')
+```
+
+### Are the cigars you usually smoke menthol cigars?
+```{python}
+freq_prop(data.query("`SI 5b` == 'Yes'"), 'OI 7b')
+```
+
+### How soon after you wake, do you first smoke a cigar, cigarillo, or little cigar?
+- Branches from SI 5b
+```{python}
+freq_prop(data.query("`SI 5b` == 'Yes'"), 'OI 9-1')
+```
+
+### Do you intend to quit using cigars, cigarillos, or little cigars within the next 30 days? 
+- Branches from SI 5b
+```{python}
+freq_prop(data.query("`SI 5b` == 'Yes'"), 'SI 10b')
+```
+<!-- ---------------------- CIGARS STOP ----------------------------------- -->
+
+
+
+
+<!-- ----------------------- PIPE START ----------------------------------- -->
+## Pipe:
+```{python}
+freq_prop(data, 'SI 5c')
+```
+
+### Pipes Per Week
+```{python}
+freq_prop(data.query("`SI 5c` == 'Yes'"), 'Pipes Per Week (SI 7c)')
+```
+<!-- ----------------------- PIPE STOP ------------------------------------ -->
+
+
+
+
+<!-- ----------------------- CHEWING START -------------------------------- -->
+## Chewing tobacco, snuff,  or dip:
+```{python}
+freq_prop(data, 'SI 5d')
+```
+
+### Do you currently use chewing tobacco, snuff or dip every day, some days, or not at all?
+- Branches from SI 5d
+```{python}
+freq_prop(data.query("`SI 5d` == 'Yes'"), 'SI 6d')
+```
+
+### Pouch Per Week
+- Branches from SI 5d
+```{python}
+# The name of this column contains an extra space between Week and (SI...)
+freq_prop(data.query("`SI 5d` == 'Yes'"), 'Pouch Per Week (SI 7d)')
+```
+
+### How soon after you wake, do you first use spit tobacco, snuff or chew?
+- Branches from SI 5d
+```{python}
+freq_prop(data.query("`SI 5d` == 'Yes'"), 'OI 9-3')
+```
+
+### Do you intend to quit using chewing tobacco, snuff, or dip within the next 30 days?
+- Branches from SI 5d
+```{python}
+freq_prop(data.query("`SI 5d` == 'Yes'"), 'SI 10d')
+```
+
+<!-- ----------------------- CHEWING STOP --------------------------------- -->
+
+
+
+
+<!-- ----------------------- OTHER START ---------------------------------- -->
+## Other tobacco products: 
+```{python}
+freq_prop(data, 'SI 5e')
+```
+
+### Bidis:
+- Branches from SI-5e
+```{python}
+freq_prop(data.query("`SI 5e` == 'Yes'"), 'OI 5e-1a')
+```
+
+### Kreteks or clove cigarettes:
+- Branches from SI-5e
+```{python}
+freq_prop(data.query("`SI 5e` == 'Yes'"), 'OI 5e-1b')
+```
+
+### Tobacco pouches or ‘snus’:
+- Branches from SI-5e
+```{python}
+freq_prop(data.query("`SI 5e` == 'Yes'"), 'OI 5e-1c')
+```
+
+### Tobacco ‘orbs’:
+- Branches from SI-5e
+```{python}
+freq_prop(data.query("`SI 5e` == 'Yes'"), 'OI 5e-1d')
+``` 
+
+### Tobacco strips: 
+- Branches from SI-5e
+```{python}
+freq_prop(data.query("`SI 5e` == 'Yes'"), 'OI 5e-1e')
+``` 
+
+### Water pipes or hookahs:
+- Branches from SI-5e
+```{python}
+freq_prop(data.query("`SI 5e` == 'Yes'"), 'OI 5e-1f')
+``` 
+
+### Do you currently use other types of tobacco every day, some days, or not at all?
+```{python}
+freq_prop(data.query("`SI 5e` == 'Yes'"), 'SI 6e')
+```
+
+### How soon after you wake, do you first use other commercial tobacco?
+```{python}
+freq_prop(data.query("`SI 5e` == 'Yes'"), 'OI 9-4')
+```
+
+### Do you intend to quit using [name of other tobacco product] within the next 30 days? 
+```{python}
+freq_prop(data.query("`SI 5e` == 'Yes'"), 'SI 10e')
+```
+<!-- ----------------------- OTHER STOP ---------------------------------- -->
+
+
+
+
+# Have you used an e-cigarette or other electronic “vaping” product in the past 30 days?
+```{python}
+freq_prop(data, 'SI 5F')
+```
+
+# Is the vaping product you usually use menthol flavored? 
+```{python}
+freq_prop(data, 'OI 7f')
+```
+
+# How soon after you wake, do you use e-cigarette or other electronic “vaping” products?
+```{python}
+freq_prop(data, 'OI 9-5')
+```
+
+# Do you intend to completely quit using e-cigarettes/e-vaping products within the next 30 days? 
+```{python}
+freq_prop(data, 'SI 10g')
+```
+
+
+
+
+
+
+
+
+
+```{python}
+# Modify columns SI 6b through SI 6e
+# data.loc[:, "SI 6b":"SI 6e"] = data.loc[:, "SI 6b":"SI 6e"].apply(lambda x: x.fillna("Not at all"))
+```
+
+
+
 
 # Do you have any mental health conditions, such as an anxiety disorder, depression disorder, bipolar disorder, schizophrenia, Attention-Deficit/Hyperactivity Disorder (ADHD), Posttraumatic Stress Disorder (PTSD) or substance use disorder?
 ```{python}
@@ -194,101 +454,17 @@ freq_prop(data, 'OI 24c')
 freq_prop(data.query("`OI 24` == 'Yes'"), 'OI 24c')
 ```
 
-# Bidis:
-```{python}
-freq_prop(data, 'OI 5e-1a')
-```
 
-# Kreteks or clove cigarettes:
-```{python}
-freq_prop(data, 'OI 5e-1b')
-```
 
-# Tobacco pouches or ‘snus’:
-```{python}
-freq_prop(data, 'OI 5e-1c')
-```
 
-# Tobacco ‘orbs’:
-```{python}
-freq_prop(data, 'OI 5e-1d')
-``` 
 
-# Tobacco strips: 
-```{python}
-freq_prop(data, 'OI 5e-1e')
-``` 
 
-# Water pipes or hookahs:
-```{python}
-freq_prop(data, 'OI 5e-1f')
-``` 
 
-# Are the cigarettes you usually smoke menthol cigarettes?
-```{python}
-freq_prop(data, 'OI 7a-1')
-```
 
-# Are the cigars you usually smoke menthol cigars?
-```{python}
-freq_prop(data, 'OI 7b')
-```
 
-# Is the vaping product you usually use menthol flavored? 
-```{python}
-freq_prop(data, 'OI 7f')
-```
 
-# How soon after you wake, do you first smoke a cigar, cigarillo, or little cigar?
-```{python}
-freq_prop(data, 'OI 9-1')
-```
 
-# How soon after you wake, do you first use spit tobacco, snuff or chew?
-```{python}
-freq_prop(data, 'OI 9-3')
-```
-
-# How soon after you wake, do you first use other commercial tobacco?
-```{python}
-freq_prop(data, 'OI 9-4')
-```
-
-# How soon after you wake, do you use e-cigarette or other electronic “vaping” products?
-```{python}
-freq_prop(data, 'OI 9-5')
-```
-
-# How may I help you today
-```{python}
-freq_prop(data, 'SI 1')
-```
-
-# Do you intend to quit using cigarettes within the next 30 days? 
-```{python}
-freq_prop(data, 'SI 10a')
-```
-
-# Do you intend to quit using cigars, cigarillos, or little cigars within the next 30 days? 
-```{python}
-freq_prop(data, 'SI 10b')
-```
-
-# Do you intend to quit using chewing tobacco, snuff, or dip within the next 30 days?
-```{python}
-freq_prop(data, 'SI 10d')
-```
-
-# Do you intend to quit using [name of other tobacco product] within the next 30 days? 
-```{python}
-freq_prop(data, 'SI 10e')
-```
-
-# Do you intend to completely quit using e-cigarettes/e-vaping products within the next 30 days? 
-```{python}
-freq_prop(data, 'SI 10g')
-```
-
+# ----------------- STANDARD INTAKE (DEMOGRAPHIC) -----------------------------
 # What is the highest level of education you have completed?
 ```{python}
 freq_prop(data, 'SI 16')
@@ -329,65 +505,10 @@ freq_prop(data, 'SI 18e')
 freq_prop(data, 'SI 18f')
 ```
 
-# How did you hear about the ASHLine?
-```{python}
-freq_prop(data, 'SI 3')
-```
 
-# Have you used an e-cigarette or other electronic “vaping” product in the past 30 days?
-```{python}
-freq_prop(data, 'SI 5F')
-```
 
-# Cigarettes:
-```{python}
-freq_prop(data, 'SI 5a')
-```
 
-# Cigars, cigarillos, or small cigars:
-```{python}
-freq_prop(data, 'SI 5b')
-```
 
-# Pipe:
-```{python}
-freq_prop(data, 'SI 5c')
-```
-
-# Chewing tobacco, snuff,  or dip:
-```{python}
-freq_prop(data, 'SI 5d')
-```
-
-# Other tobacco products: 
-```{python}
-freq_prop(data, 'SI 5e')
-```
-
-# Do you currently smoke cigarettes every day, some days, or not at all? 
-```{python}
-freq_prop(data, 'SI 6a')
-```
-
-# Do you currently smoke cigars every day, some days, or not at all?
-```{python}
-freq_prop(data, 'SI 6b')
-```
-
-# Do you currently use chewing tobacco, snuff or dip every day, some days, or not at all? 
-```{python}
-freq_prop(data, 'SI 6d')
-```
-
-# Do you currently use other types of tobacco every day, some days, or not at all?
-```{python}
-freq_prop(data, 'SI 6e')
-```
-
-# How soon after you wake, do you smoke your first cigarette?
-```{python}
-freq_prop(data, 'SI 9')
-```
 
 # Anxiety Disorder:
 ```{python}

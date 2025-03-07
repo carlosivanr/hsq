@@ -34,13 +34,46 @@ qmd_file <- "C:/Users/rodrica2/OneDrive - The University of Colorado Denver/Docu
 # Render the .qmd file to a word document -------------------------------------
 quarto::quarto_render(qmd_file) # nolint
 
-
 # Copy and rename the word document to the Egnyte directory -------------------
 # set the source file
 from_file <- "C:\\Users\\rodrica2\\OneDrive - The University of Colorado Denver\\Documents\\DFM\\projects\\hsq\\scripts\\sms\\HSQ-missing-multiple-SMS.docx" # nolint
 
-# Capture today's date to append to the new file name
+# Capture today's date to append to the new file name --------------------------
 date_today <- format(Sys.Date(), "%Y%m%d")
+
+
+# ******************************************************************************
+# !!! Experimental: Upload file to REDCap File Repository instead of Egnyte !!!
+# Find the folder_id by using the API Playground on the REDCap website. Select
+# API Method as Export a list of files/folder, copy the R code and execute it
+# to determine the folder id of the destination directory.
+
+# Set the name of the renamed file with the date appended
+renamed_file <- paste0("C:\\Users\\rodrica2\\OneDrive - The University of Colorado Denver\\Documents\\DFM\\projects\\hsq\\scripts\\sms\\HSQ-missing-multiple-SMS", date_today, ".docx")
+
+# Copy from_file to renamed_file
+file.copy(from_file, renamed_file, overwrite = TRUE)
+
+# Set token and URL
+.sms_token <- Sys.getenv("HSQ_sms")
+url <- "https://redcap.ucdenver.edu/api/"
+
+# Specify formData
+formData <- list(token=.sms_token,
+                 action='import',
+                 content='fileRepository',
+                 folder_id = "732",
+
+                 returnFormat='csv',
+                 file=httr::upload_file(renamed_file)
+)
+
+# Upload the file
+response <- httr::POST(url, body = formData, encode = "multipart")
+# result <- httr::content(response)
+# print(result)
+# ******************************************************************************
+
 
 # Set the destination file with appended date
 to_file <- paste0("Z:\\Shared\\DFM\\HSQ_Shared\\Reporting\\2 week SMS report\\HSQ-missing-multiple-SMS-", date_today, ".docx")
