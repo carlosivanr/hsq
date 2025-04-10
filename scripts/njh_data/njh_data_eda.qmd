@@ -28,17 +28,27 @@ def freq_prop(df, col_name):
     # Get the total sample size from the column
     N = str(df.shape[0])
 
-    # Set Missing values to "Unknown"
-
-    return(
-        GT(pd.DataFrame(
+    # If the input column type is categorical, then do not sort the value
+    if isinstance(df[col_name].dtype, pd.CategoricalDtype):
+        out = GT(pd.DataFrame(
+            (df[col_name].fillna("Missing", inplace = False).value_counts(sort = False).astype(str)) +
+            ' (' +
+            (df[col_name].fillna("Missing", inplace = False).value_counts(normalize = True, sort = False).mul(100).round(1).astype(str) + '%)'))
+            .reset_index()
+            .rename(columns = {0:("N = " + N)})
+            )
+    else:
+    # Else display with default behavior which is to sort
+        out = GT(pd.DataFrame(
             (df[col_name].fillna("Missing", inplace = False).value_counts().astype(str)) +
             ' (' +
             (df[col_name].fillna("Missing", inplace = False).value_counts(normalize = True).mul(100).round(1).astype(str) + '%)'))
             .reset_index()
             .rename(columns = {0:("N = " + N)})
             )
-            )
+    
+    return(out)
+
 ```
 
 ```{python}
@@ -65,8 +75,24 @@ def summarize(data, column):
 ```
 
 ```{python}
-# Load the data file
+# Load the most recent data file
 data = pd.read_csv(here("scripts/njh_data/njh_data.csv"), header = 0)
+```
+
+```{python}
+# Remove the OH participants from the most recent file so that the final OH 
+# participants can be appended
+data = data[data["State Client"] != "OH"]
+```
+
+```{python}
+# Load the OH data
+oh = pd.read_csv(here("scripts/njh_data/Helpers Quit Study Data Extract 3.21.25_OH final.csv"), header = 0)
+```
+
+```{python}
+# Stack data and oh
+data = pd.concat([data, oh], ignore_index=True)
 ```
 
 ```{python}
@@ -142,11 +168,50 @@ freq_prop(data, 'Received Varenicline')
 # Age Started Tobacco
 ```{python}
 #| eval: false
-freq_prop(data, 'Age Started Tobacco')
+# Create a basic histogram to determin the cut points for categorizing Age started tobacco
+import matplotlib.pyplot as plt
+
+# Basic histogram
+data['Age Started Tobacco'].hist(bins=10)  # You can adjust `bins` for more/less granularity
+plt.xlabel('Age')
+plt.ylabel('Frequency')
+plt.title('Age Distribution')
+plt.show()
 ```
 
 ```{python}
 summarize(data[data['Age Started Tobacco'] != 0], 'Age Started Tobacco')
+```
+
+```{python}
+# Convert the numerical age started tobacco to an ordered categorical variable
+from pandas.api.types import CategoricalDtype
+
+# Define bins and labels
+bins = [0, 15, 25, 40, 100]
+labels = ['<15', '15-24', '25-39', '40+']
+
+# Define full list of categories in desired order, including 'Missing'
+ordered_labels = labels + ['Missing']
+cat_type = CategoricalDtype(categories=ordered_labels, ordered=True)
+
+# Apply cut, convert to object, fillna, then set dtype
+age_grouped = pd.cut(
+    data['Age Started Tobacco'],
+    bins=bins,
+    labels=labels,
+    right=False
+)
+
+# Create the new variable in the data frame
+data['Age Started Tobacco Grouped'] = (
+    age_grouped.astype(object).fillna('Missing').astype(cat_type)
+)
+```
+
+```{python}
+# Tabulate the categorized Age of starting tobacco
+freq_prop(data, 'Age Started Tobacco Grouped')
 ```
 
 # How may I help you today
@@ -464,7 +529,8 @@ freq_prop(data.query("`OI 24` == 'Yes'"), 'OI 24c')
 
 
 
-# ----------------- STANDARD INTAKE (DEMOGRAPHIC) -----------------------------
+<!-- # ----------------- STANDARD INTAKE (DEMOGRAPHIC) ----------------------------- -->
+
 # What is the highest level of education you have completed?
 ```{python}
 freq_prop(data, 'SI 16')
