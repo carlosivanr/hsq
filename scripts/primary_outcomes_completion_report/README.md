@@ -1,6 +1,6 @@
 The primary_outcomes_completion_report.qmd does the following:
 1. Downloads data from RedCap
-2. Clean and prepare the data for the primary outcomes
+2. Cleans and prepares the data for the primary outcomes
   a. Total number of randomized patients
   b. Patient demographics
   c. Primary outcomes:
@@ -10,7 +10,7 @@ The primary_outcomes_completion_report.qmd does the following:
     iv.Smoking status (7-day point prevalence abstinence) at 12 months
   d. Secondary outcome: timing of participants’ first relapse to smoking
   e. Secondary outcome: Rates of participants’ self-reported delivery of helping
-      conversations to other tobacco users .
+      conversations to other tobacco users.
   f. Secondary outcomes:
     i.Smoking status (30-day point prevalence abstinence) at 3 months
     ii.Smoking status (7-day point prevalence abstinence) at 3 months

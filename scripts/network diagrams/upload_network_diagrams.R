@@ -86,6 +86,8 @@ mytriangle <- function(coords, v=NULL, params) {
           stars=cbind(vertex.size, vertex.size, vertex.size),
           add=TRUE, inches=FALSE)
 }
+
+
 # clips as a circle
 add_shape("triangle", clip=shapes("circle")$clip,
           plot=mytriangle)

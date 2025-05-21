@@ -27,7 +27,6 @@ quarto_render(
 )
 
 # Place a copy of the most recent report in the Egnyte folder -----------------
-
 from <- here(
   "scripts/primary_outcomes_completion_report/primary_outcomes_completion_report.html"
 )

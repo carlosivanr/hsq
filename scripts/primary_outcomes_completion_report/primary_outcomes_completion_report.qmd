@@ -266,7 +266,7 @@ weeks_in_study <-
 
 ```{r, echo = FALSE}
 # Create a wide dataframe from sms based off of the smoke1 variable
-wide <-   sms %>%
+wide <- sms %>%
   # mutate(smoke1 = ifelse(is.na(smoke1), "Missing", "Not Missing")) %>%
   select(record_id, redcap_event_name, smoke1) %>%
   group_by(record_id) %>%
@@ -397,6 +397,7 @@ output_tbl %>% gt()
 # Based on code chunk above, on average, it takes 0 days for participants to submit their sms surveys
 t_submit <- 0
 ```
+
 ```{r}
 # Create an intermediary data frame where only patients that relapsed are 
 # retained, sort by date, then select the first available row to capture the 

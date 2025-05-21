@@ -21,6 +21,8 @@
 current_path <- Sys.getenv("PATH")
 
 # Add a new directory to the PATH at the top to force 4.2.2 instead of 4.4.1 --
+# This is set because of multiple versions of R and needing to set 4.2.2 for
+# the report to render properly
 new_path <- paste("C:\\Program Files\\R\\R-4.2.2\\bin\\x64",
                   current_path,
                   sep = ";")
