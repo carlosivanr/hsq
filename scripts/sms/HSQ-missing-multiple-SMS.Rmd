@@ -1,16 +1,25 @@
 ---
 title: "HSQ: Missing SMS Survey Report"
 date: "`r format(Sys.Date(), '%m-%d-%Y')`"
-# knit: (function(inputFile, encoding) { 
-#       rmarkdown::render(inputFile,
-#                         encoding=encoding, 
-#                         output_file=file.path("Z:/Shared/DFM/HSQ_Shared/Reporting/2 week SMS report", 
-#                         paste('HSQ Missing SMS Survey Report ', format(Sys.Date(), "%Y%m%d"),".docx", sep = "")))})
+knit: (function(inputFile, encoding) { 
+      rmarkdown::render(inputFile,
+                        encoding=encoding, 
+                        output_file=file.path("Z:/Shared/DFM/HSQ_Shared/Reporting/2 week SMS report", 
+                        paste('HSQ Missing SMS Survey Report ', format(Sys.Date(), "%Y%m%d"),".docx", sep = "")))})
 output:
   word_document: default
   # html_document: default
   # pdf_document: default
 ---
+
+```{r}
+#N.B. This is a version of the missing sms survey for 2-weeks that is on Janet's
+# machine to run manually.
+
+# If anything is updated here, it must also be updated in the .QMD file that is
+# setup to run automatically on HPC18
+```
+
 
 ```{r, echo = FALSE}
 # PART 1 -----------------------------------------------------------------------
@@ -86,9 +95,9 @@ formData <- list(token = .sms_token, content = "report", format = "csv",
                  rawOrLabelHeaders = "raw", exportCheckboxLabel = "false",
                  returnFormat = "csv")
 response <- httr::POST(url, body = formData, encode = "form")
+
 sms <- httr::content(response)
 ```
-
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
 #for those who have filled out any survey, grab the last date
@@ -211,21 +220,24 @@ sms4 <-
 ```
 
 ```{r, echo = FALSE}
-# Load the no contact list to remove people who do not wish to be contacted from
-# the final report
-if (file.exists("Z:/Shared/DFM/HSQ_Shared/Reporting/2 week SMS report/SMS_reminder_call_contact_list.csv")) {
-  
-  # Task scheduler does not play well with Egnyte. It cannot read nor write
-  # files, so an alternative is to place the no contact list in OneDrive as 
-  # a short term fix.
-  contact_list <-
-    # read_csv("Z:/Shared/DFM/HSQ_Shared/Reporting/2 week SMS report/SMS_reminder_call_contact_list.csv",
-    #          show_col_types = FALSE)
-    read_csv("C:/Users/rodrica2/OneDrive - The University of Colorado Denver/Documents/DFM/projects/hsq/hsq_shared/sms/SMS_reminder_call_contact_list.csv",
-             show_col_types = FALSE)
+# flextable::flextable(sms4)
+```
 
-    
-  
+```{r, echo = FALSE}
+# Load in individuals that no longer wish to be contacted
+
+# Use one of two path formats, either using escape characters with mapped letter drive or
+# escape characters with UNC Path
+
+# UNC path version, works with file.exists
+# csv_file_path <- "\\\\EgnyteDrive\\ucdenver\\Shared\\DFM\\HSQ_Shared\\Reporting\\2 week SMS report\\SMS_reminder_call_contact_list.csv"
+
+# This path works in file.exists
+csv_file_path <- "Z:\\Shared\\DFM\\HSQ_Shared\\Reporting\\2 week SMS report\\SMS_reminder_call_contact_list.csv"
+
+if (file.exists(csv_file_path)) {
+  contact_list <- read_csv(csv_file_path, show_col_types = FALSE)
+
   contact_yes <- contact_list %>%
     filter(contact == 1)
 
@@ -237,37 +249,9 @@ if (file.exists("Z:/Shared/DFM/HSQ_Shared/Reporting/2 week SMS report/SMS_remind
   flextable::flextable(sms4)
 
 } else {
-  stop("The contact list cannot be found at Z:/Shared/DFM/HSQ_Shared/Reporting/2 week SMS report/SMS_reminder_call_contact_list.csv. Please verify the file is in place")
+  stop("The no-contact list .csv file cannot be found. Please verify the file is in the .qmd file directory.")
 }
-
 ```
 
 ```{r, eval = FALSE, echo = FALSE}
-There are some individuals who should appear in the contact list but do not
-Check the following
-90332
-
-90349
-
-40416
-
-80432
-
-50457
-
-50481
-
-70529
-
-100631
-
-70651
-
-10657
-
-10670
-
-30750
-
-10752
 ```
