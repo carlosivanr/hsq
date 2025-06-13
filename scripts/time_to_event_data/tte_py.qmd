@@ -1,0 +1,648 @@
+---
+title: "HSQ - Time to event analyses"
+format: html
+---
+
+```{python}
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# Carlos Rodriguez, PhD. CU Anschutz Dept. of Family Medicine
+# HSQ Time to event analyses
+
+# Description:
+# The following code is designed to pull REDCap data to prepare and structure
+# the HSQ data for the time to relapse analyses.
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+```
+
+```{python}
+import os
+import requests
+from io import StringIO
+import pandas as pd
+import numpy as np
+import datetime
+```
+
+<!-- ///////// Download and prepare baseline and demographic data ///////// -->
+
+```{python}
+# Download the participant managment data
+form_data = {
+    'token': os.getenv("HSQ_api"),
+    'content': 'report',
+    'format': 'csv',
+    'report_id': '112310',
+    'csvDelimiter': '',
+    'rawOrLabel': 'label',
+    'rawOrLabelHeaders': 'raw',
+    'exportCheckboxLabel': 'false',
+    'returnFormat': 'csv'
+}
+
+# Create a response object
+r = requests.post('https://redcap.ucdenver.edu/api/', data = form_data)
+
+# Convert the redcap data to a DataFrame
+baseline = pd.read_csv(StringIO(r.text), low_memory = False)
+```
+
+```{python}
+# The race data as raw (numeric) values is easier to work with compared to the
+# same data as label (character) values. Download the race data as numeric and
+# update the baseline data frame.
+form_data = {
+    'token': os.getenv("HSQ_api"),
+    'content': 'report',
+    'format': 'csv',
+    'report_id': '112310',
+    'csvDelimiter': '',
+    'rawOrLabel': 'raw',
+    'rawOrLabelHeaders': 'raw',
+    'exportCheckboxLabel': 'false',
+    'returnFormat': 'csv'
+}
+
+# Create a response object
+r = requests.post('https://redcap.ucdenver.edu/api/', data = form_data)
+
+# Convert the redcap data to a DataFrame
+race = pd.read_csv(StringIO(r.text), low_memory = False)
+
+# Select only the race columns
+race = race.loc[:, ["record_id"] + list(race.columns[race.columns.str.startswith("race___")])]
+
+# Update the values in baseline with those in race
+baseline.update(race)
+```
+
+
+```{python}
+# Create a days since randomization variable
+baseline["days_since_rand"] = (
+  pd.to_datetime(datetime.date.today().strftime("%Y-%m-%d")) - 
+  pd.to_datetime(baseline["randomization_dtd"])
+  ).dt.days
+
+# Filter the baseline data to only those that have been randomized
+# *** Use inplace = True, otherwise a view is created
+baseline.dropna(subset=["days_since_rand"], inplace = True)
+
+# Recode gender values
+# similar to recode() in R
+baseline["gender"] = baseline["gender"].replace({
+    ",Man (including transman and transmasculine)": "Man",
+    "Woman (including transwoman and transfeminine)": "Woman",
+    "Prefer to self-describe (non-binary, gender queer) please specify below": "Prefer to self_describe"
+})
+
+# Recode arm values
+baseline["arm"] = baseline["arm"].replace({
+  "1-  HSQ training - beginning of participation": "Intervention",
+  "2 - HSQ training - end of participation": "Control"
+})
+
+# Select the columns of interest
+demographics = baseline.loc[:, ["record_id", "arm", "age", "gender", "eth"] + list(baseline.columns[baseline.columns.str.startswith("race___")])]
+```
+
+<!-- ///////////////////// Download and merge HSQ IDs ///////////////////// -->
+```{python}
+# The data for these analyses are contained in two separate REDCap projects, 
+# the main participant management and the sms survey projects. This results in
+# each participant having a different record_id in each project. However, each
+# participant is assigned to a common HSQ Id that can be used to link the sms
+# data with the particpant mgmt data. The participant mgmt data has demographic
+# and survey information, whereas the SMS data does not. 
+
+# Download the participant hsq ids from the hsq project to merge in and later
+# link with SMS data.
+form_data = {
+    'token': os.getenv("HSQ_api"),
+    'content': 'report',
+    'format': 'csv',
+    'report_id': '123557',
+    'csvDelimiter': '',
+    'rawOrLabel': 'label',
+    'rawOrLabelHeaders': 'raw',
+    'exportCheckboxLabel': 'false',
+    'returnFormat': 'csv'
+}
+r = requests.post('https://redcap.ucdenver.edu/api/', data = form_data)
+
+# Convert the redcap data to a DataFrame
+hsq_ids = pd.read_csv(StringIO(r.text))
+```
+
+```{python}
+# Filter rows to those in the demographics subset
+hsq_ids = hsq_ids[hsq_ids["record_id"].isin(demographics["record_id"])]
+
+# Drop the old hsqid
+hsq_ids.drop(columns=["hsqid_old"], inplace=True)
+
+# Merge data frames
+demographics = pd.merge(demographics, hsq_ids, on="record_id", how="left")
+
+# drop the record_id, since the sms and participant management redcap
+# projects have different record_ids
+demographics.drop(columns=["record_id"], inplace=True)
+```
+
+<!-- /////////////////// Download and prepare SMS data //////////////////// -->
+```{python}
+# Download the SMS data
+form_data = {
+    'token': os.getenv("HSQ_sms"),
+    'content': 'report',
+    'format': 'csv',
+    'report_id': '117325',
+    'csvDelimiter': '',
+    'rawOrLabel': 'label',
+    'rawOrLabelHeaders': 'raw',
+    'exportCheckboxLabel': 'false',
+    'returnFormat': 'csv'
+}
+
+r = requests.post('https://redcap.ucdenver.edu/api/', data = form_data)
+
+# Convert the redcap data to a DataFrame
+sms = pd.read_csv(StringIO(r.text))
+```
+
+```{python}
+# Create all possible combinations of record_id and redcap_event_name----------
+
+# Get all of the unique record ids into an array
+record_ids = sms["record_id"].unique()
+
+# Get all of the unique redcap event names in the sms data which represent 
+# weeks
+event_names = sms["redcap_event_name"].unique()
+
+# Create a multi index object for each week possible for all participants
+complete_grid = pd.MultiIndex.from_product([record_ids, event_names], names=["record_id", "redcap_event_name"])
+
+# Convert the multi index object to a data frame for merging
+complete_sms = pd.DataFrame(index=complete_grid).reset_index()
+
+# Merge with original data to create any missing rows
+sms = complete_sms.merge(sms, on=["record_id", "redcap_event_name"], how="left")
+```
+
+```{python}
+# Create the week variable as a numeric integer
+sms["week"] = sms["redcap_event_name"].str[4:].astype(int)
+```
+
+```{python}
+# Sort the data
+sms = sms.sort_values(["record_id", "week"], ascending=[True, True])
+```
+
+```{python}
+# Fill the following variables using forward fill
+vars_to_fill = ["randomization_dtd", "sms_strt_dtd", "hsqid", "patientend_dtd"]
+
+sms[vars_to_fill] = (
+    sms.groupby("record_id")[vars_to_fill]
+    .transform("ffill")
+)
+```
+
+```{python}
+# Remove the rows where week is 0 since this row is more of a house keeping
+# row and does not contain actual sms survey data
+sms = sms[sms["redcap_event_name"].str.strip() != "Week0"]
+```
+
+
+```{python}
+# Convert sms_strt_date to datetime column to get a time delta variable
+cols_to_convert = ["sms_strt_dtd", "sms_survey_timestamp", "randomization_dtd"]
+
+sms[cols_to_convert] = sms[cols_to_convert].apply(pd.to_datetime, errors="coerce")
+
+# Convert "Yes" to 1, otherwise 0
+# condtion == "Yes" returns logical, which can be converted to integer
+# sms["smoke1_numeric"] = (sms["smoke1"] == "Yes").astype(int)
+
+cols_to_transform = ["smoke1", "smoke2"]
+
+replace_map = {"Yes": 1, "No": 0}
+
+sms[cols_to_transform] = sms[cols_to_transform].apply(lambda col: col.map(replace_map).astype(float))
+```
+
+```{python}
+# Create the first_relapse data frame
+first_relapse = sms.copy()
+
+# Some participants fill out part of the survey and have data for smoke1, which
+# asks if someone smoked in the past 7 days. However, they may not have
+# completed/submitted their survey and therefore have a missing timestamp. The
+# following code chunk is designed to estimate a timestamp based on the date
+# the participant started receiving sms surveys and the week of the study.
+
+# Number of records with a non-missing value for smoke1 and a missing
+# sms_survey_timestamp
+n_vals_to_fill = sum(
+  first_relapse["sms_survey_timestamp"].isna() & 
+  first_relapse["smoke1"].notna()
+)
+
+# Filter rows where the survey timestamp is missing AND smoke1 is not, then
+# select the survey time stamp column, then set to those values to the week of
+# their length in the study minus 1 multiplied by 7. This value is converted to
+# days, and is then added to the sms start date
+first_relapse.loc[
+  first_relapse["sms_survey_timestamp"].isna() & 
+  first_relapse["smoke1"].notna(),
+  "sms_survey_timestamp"
+] = first_relapse["sms_strt_dtd"] + pd.to_timedelta((first_relapse["week"] - 1) * 7, unit = "D")
+
+# Subset the data frame to only those that responded "Yes" to smoke1
+# which would indicate if they relapsed, then select the first row
+# after sorting by timestamp to get the first relapse.
+# group_by(record_id) %>% slice_head()
+first_relapse = (first_relapse.query("smoke1 == 1")
+  .sort_values(["record_id", "sms_survey_timestamp"])
+  .groupby("record_id")
+  .head(1)
+)
+
+# Calculate the time to relapse as the difference between the survey time stamp
+# of their first smoke1 == "Yes" response and the randomization date
+first_relapse["time_to_relapse"] = (first_relapse["sms_survey_timestamp"] - first_relapse["randomization_dtd"]).dt.days
+
+# How many rows where people use a different combustible tobacco product and
+# did not respond to "Yes" for smoke1
+n_smoke2_w_out_smoke1 = sum(
+  (first_relapse["smoke2"] == 1) & (first_relapse["smoke1"] != 1)
+)
+
+# Select the columns of interest
+first_relapse = first_relapse[["record_id", "time_to_relapse"]]
+
+# QA Check everything up to here is good so far.
+```
+
+```{python}
+# Calculate relapse as two consecutive relapses
+two_consecutive_relapse = sms.copy().reset_index(drop=True)
+
+# Identify consecutive "Yes" values within each record_id
+# If smoke1_numeric == 1 and if the next row also == 1, then it is a 
+# consecutive yes
+two_consecutive_relapse["consecutive_yes"] = (
+    two_consecutive_relapse.groupby("record_id")["smoke1"].transform(lambda x: (x == 1) & (x.shift() == 1))
+)
+
+# Get indices where consecutive_yes == True
+true_indices = two_consecutive_relapse.index[two_consecutive_relapse["consecutive_yes"]]
+
+first_yes_indices = true_indices - 1
+
+# Flag the first row of each sequence
+# Initialize column
+two_consecutive_relapse["first_yes"] = False  
+
+two_consecutive_relapse.loc[first_yes_indices, "first_yes"] = True
+
+# Filter to those rows where there is a first yes
+# Captures the first as opposed to the second of a sequence
+two_consecutive_relapse = two_consecutive_relapse[two_consecutive_relapse["first_yes"]]
+
+# group by slice head
+two_consecutive_relapse = (two_consecutive_relapse
+  .groupby("record_id")
+  .head(1)
+)
+
+first_relapse["two_consecutive_relapse"] = first_relapse["record_id"].isin(two_consecutive_relapse["record_id"]).astype(int)
+
+first_relapse = first_relapse[["record_id", "time_to_relapse", "two_consecutive_relapse"]]
+```
+
+```{python}
+# LAST OBSERVATION for those that did not relapse get the time of the last observation
+last_observation = sms.copy()
+
+# Some participants have a partially completed survey that may have some 
+# questions answered, but was not submitted. These individuals would not get a
+# time stamp. So if we do not have a response for smoke1 and we do not have a 
+# time stamp, but there is an entry, we estimate the date of the last 
+# observation as the difference between the sms start date and the week number 
+# minus 1.
+last_observation.loc[
+  last_observation["sms_survey_timestamp"].isna() & last_observation["smoke1"].notna(),
+  "sms_survey_timestamp"
+] = last_observation["sms_strt_dtd"] + pd.to_timedelta((last_observation["week"] - 1) * 7, unit = "D")
+
+# Drop rows where smoke1 is missing
+last_observation = last_observation.dropna(subset=["smoke1"])
+
+# Capture one row per patient
+last_observation = (last_observation
+  .groupby("record_id")
+  .tail(1)
+)
+
+# Calculate the time of the last observation in days
+last_observation["time_to_last_obs"] = (
+  last_observation["sms_survey_timestamp"] - last_observation["randomization_dtd"]
+  ).dt.days
+
+# Select the columns of interest
+last_observation = last_observation[["record_id", "time_to_last_obs"]]
+
+# QA checks out here too
+```
+
+```{python}
+# Create a dataframe that consists of 1 row per patient from the entire data 
+# set
+t_to_relapse = (sms[["record_id", "hsqid", "randomization_dtd", "sms_strt_dtd"]]
+  .groupby("record_id")
+  .head(1)
+)
+
+# merge t to relapse and first relapse
+t_to_relapse = pd.merge(t_to_relapse, first_relapse, on="record_id", how="left") 
+
+# merge t to relapse and last observation
+t_to_relapse = pd.merge(t_to_relapse, last_observation, on="record_id", how="left") 
+
+# Create time, status, and event variables
+t_to_relapse["event"] = t_to_relapse["time_to_relapse"].notna().astype(int)
+
+# Check the creation of event
+# t_to_relapse["event"].value_counts(dropna=False)
+
+# Set the time variable via an ifelse() statement
+# if time to relapse is missing, set as the last observation, otherwise set to
+# the time to relapse
+t_to_relapse["time"] = np.where(
+  t_to_relapse["time_to_relapse"].isna(), 
+  t_to_relapse["time_to_last_obs"], 
+  t_to_relapse["time_to_relapse"]
+)
+
+# Set the status variable via an ifelse() satement
+# if event == 1 set to relapse, otherwise set to abstain
+t_to_relapse["status"] = np.where(t_to_relapse["event"] == 1, "relapse", "abstain")
+
+# if time is missing, set to NA, else leave as it for event and status columns
+t_to_relapse["event"] = np.where(t_to_relapse["time"].isna(), np.nan, t_to_relapse["event"])
+
+# t_to_relapse["event"].value_counts(dropna=False)
+
+
+t_to_relapse["status"] = np.where(t_to_relapse["time"].isna(), np.nan, t_to_relapse["status"])
+
+# t_to_relapse["status"].value_counts(dropna=False)
+```
+
+```{python}
+# Merge the demographic information to the t to relapse data frame
+t_to_relapse = pd.merge(t_to_relapse, demographics, on="hsqid", how="left")
+
+# Create a new variable for event with 2 consecutive relapse
+# uses a nested ifelse()
+t_to_relapse["event_2wk"] = np.where(
+    t_to_relapse["event"].isna(),
+    np.nan,
+    np.where(
+        (t_to_relapse["two_consecutive_relapse"] == 1) & (t_to_relapse["event"] == 1),
+        1,
+        0
+    )
+)
+```
+
+```{python}
+# Drop any rows where arm is missing
+t_to_relapse = t_to_relapse.dropna(subset=["arm"])
+```
+
+```{python}
+# t_to_relapse["status"].value_counts()
+# t_to_relapse["event"].value_counts(dropna = False)
+```
+
+```{python}
+# Seems like the NAs aren't getting ported to sas correctly
+# code as np.nan
+```
+
+```{python}
+# Prepare race data -----------------------------------------------------------
+# eth: hispanic
+# 0	race___0	Black or African American
+# 1	race___1	Asian
+# 2	race___2	White/Caucasian
+# 3	race___3	Native Hawaiian or Other Pacific Islander
+# 4	race___4	American Indian/Alaska Native
+# -66	race____66	Other
+# -1	race____1	Declined
+
+# proposed algorithm for a combined category based off of PATHWEIGH
+# If Hispanic set to Hispanic, otherwise set to the provided Race value
+# Set Race to column, unless it's more than one race
+# Set missing, Declined to Unknown
+
+t_to_relapse["race_gt_1"] = t_to_relapse.loc[
+  :, 
+  ["race___0","race___1", "race___2", "race___3", "race___4", "race____66"]
+  ].sum(axis=1)
+
+t_to_relapse["race_gt_1"] = np.where(
+  t_to_relapse["race_gt_1"] > 1,
+  1,
+  0
+)
+
+# Initialize an empty race/ethnicity column
+t_to_relapse["race_eth"] = pd.NA
+
+# If eth == Yes set to "Hispanic", else leave as is
+t_to_relapse["race_eth"] = np.where(
+  t_to_relapse["eth"] == "Yes",
+  "Hispanic",
+  t_to_relapse["race_eth"]
+)
+
+# If race_gt_1 == 1 and race_eth is missing, set to more than one race, else leave as is
+t_to_relapse["race_eth"] = np.where(
+  (t_to_relapse["race_gt_1"] == 1) & t_to_relapse["race_eth"].isna(),
+  "Multiple race",
+  t_to_relapse["race_eth"]
+)
+
+# If race___0 == 1 and race_eth is missing, set to Black, else leave as is
+t_to_relapse["race_eth"] = np.where(
+  (t_to_relapse["race___0"] == 1) & t_to_relapse["race_eth"].isna(),
+  "Black",
+  t_to_relapse["race_eth"]
+)
+
+
+# If race___1 == 1 and race_eth is missing, set to Asian, else leave as is
+t_to_relapse["race_eth"] = np.where(
+  (t_to_relapse["race___1"] == 1) & t_to_relapse["race_eth"].isna(),
+  "Asian",
+  t_to_relapse["race_eth"]
+)
+
+# If Race___2 == 1 and race_eth is missing, set to White, else leave as is
+t_to_relapse["race_eth"] = np.where(
+  (t_to_relapse["race___2"] == 1) & t_to_relapse["race_eth"].isna(),
+  "White",
+  t_to_relapse["race_eth"]
+)
+
+# If race___3 == 1 and race_eth is missing, set to Hawaiian, else leave as is
+t_to_relapse["race_eth"] = np.where(
+  (t_to_relapse["race___3"] == 1) & t_to_relapse["race_eth"].isna(),
+  "Native Hawaiian/Pacific Islander",
+  t_to_relapse["race_eth"]
+)
+
+# If race___4 == 1 and race_eth is missing, set to American Indian, else leave as is
+t_to_relapse["race_eth"] = np.where(
+  (t_to_relapse["race___4"] == 1) & t_to_relapse["race_eth"].isna(),
+  "American Indian/Alaska Native",
+  t_to_relapse["race_eth"]
+)
+
+# If race____66 == 1 and race_eth is missing, set to Other, else leave as is
+t_to_relapse["race_eth"] = np.where(
+  (t_to_relapse["race____66"] == 1) & t_to_relapse["race_eth"].isna(),
+  "Other",
+  t_to_relapse["race_eth"]
+)
+
+# If race____1 == 1 and race_eth is missing, set to Unknown, else leave as is
+t_to_relapse["race_eth"] = np.where(
+  (t_to_relapse["race____66"] == 1) & t_to_relapse["race_eth"].isna(),
+  "Unknown",
+  t_to_relapse["race_eth"]
+)
+
+# Set any remaining missing values to unknown
+t_to_relapse["race_eth"] = np.where(
+  t_to_relapse["race_eth"].isna(),
+  "Unknown",
+  t_to_relapse["race_eth"]
+)
+```
+
+```{python}
+# t_to_relapse["race_eth"].value_counts()
+
+# Add thinkific completion data as a covariate --------------------------------
+
+# Model if it's in the first half or 2nd half of the study
+# In the 2nd half of the study, someone could relapse, and then quit within a 
+# 2 week period and it wouldn't be detected. Question only asks for the past 7
+# days
+```
+
+```{python}
+import saspy
+sas = saspy.SASsession(cfgname = 'autogen_winlocal', verbose = False)
+```
+
+```{python}
+# SAS section begin -------------------------------------------------------
+# Send df to SAS
+sas_data = sas.df2sd(
+  t_to_relapse,
+  # libref = "hsq_data",
+  table = "first_relapse", 
+  verbose = False)
+```
+
+```{python}
+c = sas.submitLST("""
+  libname mylib 'C:/Users/rodrica2/Documents/';
+
+  data mylib.my_saved_table;
+    set first_relapse;
+  run;
+
+  """
+)
+
+```
+```{python}
+# Submit SAS commands, use sas.submitLST() to display output in viewer
+c = sas.submitLST("""
+
+  /* /////////////////////// Single instance relapse  //////////////////////// */
+  /* Frequencies & proportions ------------------------------------------------*/
+  title "Event by Arm (relapse = event 1)";
+  proc freq data = first_relapse;
+      table event * arm;
+  run;
+  title;
+
+  /* Chi-square to compare the proportion of relapse by intervention */
+  title "Chi-square test by arm where relapse = 1";
+  proc freq data = first_relapse;
+      where event = 1;
+      tables arm / chisq;
+  run;
+  
+  /* Kaplan-Meier Analysis ----------------------------------------------------*/
+  proc lifetest data = first_relapse plot=(s);
+      time time*event(0);
+      strata arm;
+      title "Kaplan-Meier Analysis";
+  run;
+
+  /*  Proportional Hazards Regresion ------------------------------------------*/
+  proc phreg data=first_relapse;
+    class arm gender race_eth / param=GLM;
+    model time*event(0) = arm | gender | race_eth;
+    lsmeans arm*gender*race_eth / diff;
+  run;
+  /* /////////////////////////////////////////////////////////////////////// */
+  """)
+```
+
+```{python}
+#| eval: false
+
+# Chi-Square
+# A chi-square test of independence revealed that there is insufficient evidence to conclude that the proportion of people who relapsed differed between the intervention and control groups p = 0.0700. (6/12/2025)
+
+# Kaplan Meier
+# The log-rank test revealed that there is insufficient evidence to conclude that the time to relapse is not significantly different between control and intervention groups p = 0.0817. (6/12/2025)
+```
+
+```{python}
+c = sas.submitLST("""
+  /* ////////////////////// Sustained relapse ////////////////////// */
+  /* Chi-square to compare the proportion of relapse by intervention */
+  title "Chi-square test by arm where relapse = 1";
+  proc freq data = first_relapse;
+      where event_2wk = 1;
+      tables arm / chisq;
+  run;
+  
+  /* Kaplan-Meier Analysis ----------------------------------------------------*/
+  proc lifetest data = first_relapse plot=(s);
+      time time*event_2wk(0);
+      strata arm;
+      title "Kaplan-Meier Analysis";
+  run;
+
+  /*  Proportional Hazards Regresion ------------------------------------------*/
+  proc phreg data = first_relapse;
+    class arm gender race_eth / param=GLM;
+    model time*event_2wk(0) = arm | gender | race_eth;
+    lsmeans arm*gender*race_eth / diff;
+  run;
+  /* /////////////////////////////////////////////////////////////////////// */
+  """)
+```

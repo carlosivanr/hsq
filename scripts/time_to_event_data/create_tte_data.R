@@ -101,6 +101,34 @@ tte_data  <- sms %>%
   mutate(previous_relapse = ifelse(lag(event) == 1, previous_relapse, NA))
 
 
+# Testing creating a recurrent time to event data
+# Weeks
+week_0_24 <- data.frame(
+  week = 1:24,
+  start = seq(from = 0, by = 7, length.out = 24),
+  stop = seq(from = 7, by = 7, length.out = 24)
+)
+
+week_25_48 <- data.frame(
+  week = seq(from = 26, by = 2, length.out = 12),
+  start = seq(from = 168, by = 14, length.out = 12),
+  stop = seq(from = 175, by = 14, length.out = 12)
+)
+
+tte_data <- left_join(
+  tte_data,
+  (bind_rows(
+    week_0_24,
+    week_25_48)),
+  by = "week"
+)
+
+tte_data <- tte_data %>%
+  arrange(record_id, week) %>%
+  group_by(record_id) %>%
+  mutate(previous_event_sum = cumsum(ifelse(is.na(event), 0, event)) - ifelse(is.na(event), 0, event))
+
+
 # Write out a sample data set for Jun to review
 tte_data %>%
   head(1000) %>%
