@@ -10,7 +10,7 @@ format: html
 
 # Description:
 # The following code is designed to pull REDCap data to prepare and structure
-# the HSQ data for the time to relapse analyses.
+# the HSQ data for the time to event analyses.
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 ```
 
@@ -572,8 +572,8 @@ c = sas.submitLST("""
 
   """
 )
-
 ```
+
 ```{python}
 # Submit SAS commands, use sas.submitLST() to display output in viewer
 c = sas.submitLST("""
