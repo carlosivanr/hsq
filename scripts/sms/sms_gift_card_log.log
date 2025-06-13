@@ -8,7 +8,7 @@
 ✖ dplyr::filter() masks stats::filter()
 ✖ dplyr::lag()    masks stats::lag()
 ℹ Use the conflicted package (<http://conflicted.r-lib.org/>) to force all conflicts to become errors
-Rows: 827 Columns: 4
+Rows: 858 Columns: 4
 ── Column specification ────────────────────────────────────────────────────────
 Delimiter: ","
 chr (1): redcap_event_name
@@ -16,24 +16,24 @@ dbl (3): record_id, hsqid, smssurvey_count
 
 ℹ Use `spec()` to retrieve the full column specification for this data.
 ℹ Specify the column types or set `show_col_types = FALSE` to quiet this message.
-Starting to update 827 records to be written at 2025-05-20 14:00:45.
+Starting to update 858 records to be written at 2025-06-12 14:00:33.
 Writing batch 1 of 9, with indices 1 through 100.
-100 records were written to REDCap in 13.2 seconds.
+100 records were written to REDCap in 11.7 seconds.
 Writing batch 2 of 9, with indices 101 through 200.
-100 records were written to REDCap in 7.9 seconds.
+100 records were written to REDCap in 6.2 seconds.
 Writing batch 3 of 9, with indices 201 through 300.
-100 records were written to REDCap in 8.1 seconds.
+100 records were written to REDCap in 5.9 seconds.
 Writing batch 4 of 9, with indices 301 through 400.
-100 records were written to REDCap in 7.0 seconds.
+100 records were written to REDCap in 6.1 seconds.
 Writing batch 5 of 9, with indices 401 through 500.
-100 records were written to REDCap in 8.1 seconds.
+100 records were written to REDCap in 7.3 seconds.
 Writing batch 6 of 9, with indices 501 through 600.
-100 records were written to REDCap in 13.0 seconds.
+100 records were written to REDCap in 11.2 seconds.
 Writing batch 7 of 9, with indices 601 through 700.
-100 records were written to REDCap in 13.1 seconds.
+100 records were written to REDCap in 11.2 seconds.
 Writing batch 8 of 9, with indices 701 through 800.
-100 records were written to REDCap in 15.2 seconds.
-Writing batch 9 of 9, with indices 801 through 827.
-27 records were written to REDCap in 3.7 seconds.
+100 records were written to REDCap in 10.9 seconds.
+Writing batch 9 of 9, with indices 801 through 858.
+58 records were written to REDCap in 6.6 seconds.
 Warning message:
 package 'purrr' was built under R version 4.2.3 
