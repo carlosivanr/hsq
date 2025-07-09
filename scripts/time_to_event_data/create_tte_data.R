@@ -6,7 +6,12 @@
 #
 # Description -  This script is designed to download the HSQ SMS RedCap data to
 # create the time to event analysis data set.
-#
+
+# This script represents a copy of the code found in the primary outcomes 
+# completion report. It is also not as developed as the tte_py.qmd code which
+# constructs additional variables such as quit attempts, redefined version of
+# relapse as two consecutive weeks, and other updates to the anlaytical file.
+# CR 07/03/2025
 # /////////////////////////////////////////////////////////////////////////////
 
 pacman::p_load(here,
