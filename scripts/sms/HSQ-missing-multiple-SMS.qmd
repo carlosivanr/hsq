@@ -115,37 +115,47 @@ sms <- read_csv(httr::content(response, as = "text"),
                   miss_survey_contact_date_3 = col_date(format = "%Y-%m-%d"),
                   miss_survey_contact_date_4 = col_date(format = "%Y-%m-%d"),
                   miss_survey_contact_date_5 = col_date(format = "%Y-%m-%d"),
-                  miss_survey_contact_date_6 = col_date(format = "%Y-%m-%d")))
+                  miss_survey_contact_date_6 = col_date(format = "%Y-%m-%d")),
+                  show_col_types = FALSE)
+```
+
+```{r}
+# Generate a list of those who no longer wish to be contacted
+no_contact_ids <- 
+  sms %>%
+  group_by(record_id) %>%
+  slice_head() %>%
+  ungroup() %>%
+  rowwise() %>%
+  mutate(non_missing_count = sum(!is.na(c_across(
+    c(miss_survey_contact_date, 
+      miss_survey_contact_date_2:miss_survey_contact_date_5))))) %>%
+  ungroup() %>%
+  select(
+    record_id, 
+    hsqid, 
+    # starts_with("miss_survey_contact"), 
+    non_missing_count) %>%
+  # mutate(no_contact_list = ifelse(non_missing_count == 6, 1, 0)) %>%
+  filter(non_missing_count == 5) %>%
+  # select(record_id, hsqid) %>%
+  # write_csv(., file = "C:\\Users\\rodrica2\\OneDrive - The University of Colorado Denver\\Documents\\DFM\\projects\\hsq\\scripts\\sms\\no_contact_list.csv")
+  pull(hsqid)
 
 ```
 
+```{r}
+# Generate a list of those with a bad phone number for contacting
+wrong_num_ids <- 
+  sms %>%
+  filter(!is.na(miss_survey_contact_date_6)) %>%
+  # select(record_id, hsqid) %>%
+  # write_csv(., file = "C:\\Users\\rodrica2\\OneDrive - The University of Colorado Denver\\Documents\\DFM\\projects\\hsq\\scripts\\sms\\wrong_number_list.csv")
+  pull(hsqid)
+```
 
 ```{r}
-# TEST UPLOADING TO REDCAP VIA API
-# file <- "C:\\Users\\rodrica2\\OneDrive - The University of Colorado Denver\\Documents\\DFM\\projects\\hsq\\file_upload_test.csv"
-# formData <- list(token=.sms_token,
-#     action='import',
-#     content='fileRepository',
-#     folder_id = "732",
-#     returnFormat='csv',
-#     file=httr::upload_file(file)
-# )
-# response <- httr::POST(url, body = formData, encode = "multipart")
-# result <- httr::content(response)
-# print(result)
-
-# token <- "B8CFCBBE41DA33F4D81C5E70EE077853"
-# url <- "https://redcap.ucdenver.edu/api/"
-# formData <- list("token"=token,
-#     content='fileRepository',
-#     action='list',
-#     format='csv',
-#     folder_id='',
-#     returnFormat='csv'
-# )
-# response <- httr::POST(url, body = formData, encode = "form")
-# result <- httr::content(response)
-# print(result)
+exclude_ids <- c(no_contact_ids, wrong_num_ids)
 ```
 
 ```{r}
@@ -179,6 +189,7 @@ sms <- sms %>%
 #for those who have filled out any survey, grab the last date
 sms2 <-
   sms %>%
+  # *** Group by statement should be here, maybe because everything is in order ???
   fill(hsqid, smssurvey_count,
        randomization_dtd) %>%
   group_by(hsqid) %>%
@@ -299,6 +310,13 @@ sms4 <-
          `Days since randomization/last survey/last contact` = days_since)
 ```
 
+```{r}
+sms4 %>%
+  filter(!`HSQ Study ID` %in% as.character(exclude_ids)) %>%
+  flextable::flextable(.)
+```
+
+
 ```{r, echo = FALSE}
 # flextable::flextable(sms4)
 ```
@@ -312,23 +330,23 @@ sms4 <-
 # UNC path version, works with file.exists
 # csv_file_path <- "\\\\EgnyteDrive\\ucdenver\\Shared\\DFM\\HSQ_Shared\\Reporting\\2 week SMS report\\SMS_reminder_call_contact_list.csv"
 
-# This path works in file.exists
-csv_file_path <- "Z:\\Shared\\DFM\\HSQ_Shared\\Reporting\\2 week SMS report\\SMS_reminder_call_contact_list.csv"
+# # This path works in file.exists
+# csv_file_path <- "Z:\\Shared\\DFM\\HSQ_Shared\\Reporting\\2 week SMS report\\SMS_reminder_call_contact_list.csv"
 
-if (file.exists(csv_file_path)) {
-  contact_list <- read_csv(csv_file_path, show_col_types = FALSE)
+# if (file.exists(csv_file_path)) {
+#   contact_list <- read_csv(csv_file_path, show_col_types = FALSE)
 
-  contact_yes <- contact_list %>%
-    filter(contact == 1)
+#   contact_yes <- contact_list %>%
+#     filter(contact == 1)
 
-  # Remove individuals that do not want to be contacted from sms4
-  sms4 <- sms4 %>%
-    filter(`HSQ Study ID` %in% contact_yes$hsqid)
+#   # Remove individuals that do not want to be contacted from sms4
+#   sms4 <- sms4 %>%
+#     filter(`HSQ Study ID` %in% contact_yes$hsqid)
 
-  #print out the table
-  flextable::flextable(sms4)
+#   #print out the table
+#   flextable::flextable(sms4)
 
-} else {
-  stop("The no-contact list .csv file cannot be found. Please verify the file is in the .qmd file directory.")
-}
+# } else {
+#   stop("The no-contact list .csv file cannot be found. Please verify the file is in the .qmd file directory.")
+# }
 ```
