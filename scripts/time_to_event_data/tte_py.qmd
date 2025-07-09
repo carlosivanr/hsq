@@ -767,7 +767,7 @@ sas_data = sas.df2sd(
 # We will (1) use KM curves and log rank tests to compare survival curves between intervention and control arms. (2) Use Cox PH models to compare hazard ratios (between intervention and control arms) for subpopulations such as male participants and female participants by adding a fixed effect (such as sex) and its interaction with the intervention effect. The candidates of those characteristics effects can be sex, age (group), race/ethnicity, and baseline social network (future) characteristics, etc.
 ```
 
-## A: Single instance relapse
+## Single instance relapse
 - Relapse defined as first relapse detected in the data where relapse is defined as a "Yes" response to the SMS survey question "Have you smoked or vaped in the past 7 days?".
 - SMS surveys captured every week from 0-24 weeks and every two weeks thereafter.
 ```{python}
@@ -821,7 +821,7 @@ c = sas.submitLST("""
 # Submit SAS commands, use sas.submitLST() to display output in viewer
 c = sas.submitLST("""
 
-  ods html style=journal;
+  *ods html style=journal;
 
   /* /////////////////////// Single instance relapse  //////////////////////// */
   /* Frequencies & proportions ------------------------------------------------*/
@@ -863,7 +863,7 @@ c = sas.submitLST("""
   """)
 ```
 
-## B: Sustained relapse
+## Sustained relapse
 - Relapse defined as two consecutive "Yes" responses to the SMS survey question "Have you smoked or vaped in the past 7 days?".
 - SMS surveys captured every week from 0-24 weeks and every two weeks thereafter.
 ```{python}
