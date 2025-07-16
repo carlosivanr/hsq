@@ -33,6 +33,10 @@ jupyter: hsq_env
 
 # To Do: 
 # 1. Refine code to count the number of quit attempts
+# 2. Count the number of sms surveys completed to adjust the number of quit
+#   attempts.
+# 3. Create a visualization to show how quit attempts is created using ppt.
+# 4. May need to adjust for social network values
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 ```
 
@@ -791,6 +795,8 @@ c = sas.submitLST("""
     class arm gender race_eth / param=GLM;
     model time*event(0) = arm | gender;
     lsmeans arm*gender/ diff;
+    lsmeans arm / diff;
+    lsmeans gender / diff;
   run;
 
   title "PHREG - Race/Ethnicity";
@@ -798,6 +804,8 @@ c = sas.submitLST("""
     class arm gender race_eth / param=GLM;
     model time*event(0) = arm | race_eth;
     lsmeans arm*race_eth / diff;
+    lsmeans arm / diff;
+    lsmeans race_eth / diff;
   run;
 
   title "PHREG - Age_bin";
@@ -805,6 +813,23 @@ c = sas.submitLST("""
     class age_bin arm /  param=GLM;
     model time*event(0) = arm | age_bin;
     lsmeans arm*age_bin / diff;
+    lsmeans arm / diff;
+    lsmeans age_bin / diff;
+  run;
+
+
+  title "PHREG - unadjusted";
+  proc phreg data=tte;
+    class arm /  param=GLM;
+    model time*event(0) = arm;
+    lsmeans arm / diff;
+  run;
+
+  title "PHREG - adjusted";
+  proc phreg data=tte;
+    class age_bin race_eth gender arm /  param=GLM;
+    model time*event(0) = arm age_bin race_eth gender;
+    lsmeans arm / diff;
   run;
 
   ods exclude none;
@@ -885,18 +910,38 @@ c = sas.submitLST("""
     class arm gender race_eth / param=GLM;
     model time*event_2wk(0) = arm | gender;
     lsmeans arm*gender / diff;
+    lsmeans arm / diff;
+    lsmeans gender / diff;
   run;
 
   proc phreg data = tte;
     class arm gender gender / param=GLM;
-    model time*event_2wk(0) = arm | gender;
-    lsmeans arm*gender / diff;
+    model time*event_2wk(0) = arm | race_eth;
+    lsmeans arm*race_eth / diff;
+    lsmeans arm / diff;
+    lsmeans gender / diff;
   run;
 
   proc phreg data = tte;
     class arm gender age_bin / param=GLM;
     model time*event_2wk(0) = arm | age_bin;
     lsmeans arm*age_bin / diff;
+    lsmeans arm / diff;
+    lsmeans age_bin / diff;
+  run;
+
+  title "PHREG - unadjusted";
+  proc phreg data=tte;
+    class arm /  param=GLM;
+    model time*event_2wk(0) = arm;
+    lsmeans arm / diff;
+  run;
+
+  title "PHREG - adjusted";
+  proc phreg data=tte;
+    class age_bin race_eth gender arm /  param=GLM;
+    model time*event_2wk(0) = arm age_bin race_eth gender;
+    lsmeans arm / diff;
   run;
 
   ods exclude none;
@@ -1004,7 +1049,7 @@ c = sas.submitLST("""
   """)
 ```
 
-
+<!-- //////////////////////////// QUIT ATTEMPTS /////////////////////////// -->
 ```{python}
 #| eval: false
 #  Quit attempt development for 1 record_id
