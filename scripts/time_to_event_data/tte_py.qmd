@@ -1051,31 +1051,6 @@ c = sas.submitLST("""
 
 <!-- //////////////////////////// QUIT ATTEMPTS /////////////////////////// -->
 ```{python}
-#| eval: false
-#  Quit attempt development for 1 record_id
-
-test_df = sms[sms["record_id"] == 1]
-
-test_df["lag"] = test_df["smoke1"].shift(1)
-
-# A quit attempt could be defined by cases wehre the difference between smoke1 and the lag
-# of smoke1 is equal to -1
-test_df["quit_attempt"] = test_df["smoke1"] - test_df["lag"]
-
-# Convert -1 to 1 an
-test_df["quit_attempt"] = np.where(test_df["quit_attempt"] == -1, 1, 0)
-
-test_df[["smoke1", "lag", "quit_attempt"]]
-
-# Then group by record_id and sum
-test_df["quit_attempt"].agg("sum")
-```
-
-
-```{python}
-#| eval: false
-# 
-#  
 # Define a function where a quit attempt is defined as cases where the 
 # difference between smoke1 and the lag(smoke1) is equal to -1. If smoke1 is 0
 # (no relapse), but the prior response to smoke1 was 1 (relapse), then this
@@ -1087,11 +1062,13 @@ def detect_quit_attempts(data):
     data["lag"] = data["smoke1"].shift(1)
     data["quit_attempts"] = np.where(data["smoke1"] - data["lag"] == -1, 1, 0)
     return data
+```
 
+```{python}
 # Apply the function to the sms data after grouping by record_id. Since each
 # participant begins on a quit attempt, 1 is added to include the baseline.
 quit_attempts = (sms
-  .groupby("record_id", group_keys=False)
+  .groupby("record_id", group_keys=False)[["record_id", "smoke1"]]
   .apply(detect_quit_attempts)
   .groupby("record_id")["quit_attempts"]
   .sum()
