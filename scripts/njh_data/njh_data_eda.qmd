@@ -13,65 +13,67 @@ execute:
 import pandas as pd
 from great_tables import GT, md, html
 from pyprojroot import here
+from dfm_tb.tables import freq_prop
+from dfm_tb.tables import summarize
 ```
 
 ```{python}
-# Define a function that generates frequency and proportions of one column
-def freq_prop(df, col_name):
+# # Define a function that generates frequency and proportions of one column
+# def freq_prop(df, col_name):
     
-    """ Returns a GT object with the n(%) values sorted descending.
-    Keyword arguments:
-    df       -- a dataframe
-    col_name -- the name of the column in quotes
-    freq_prop(df, "Gender")
-    """
-    # Get the total sample size from the column
-    N = str(df.shape[0])
+#     """ Returns a GT object with the n(%) values sorted descending.
+#     Keyword arguments:
+#     df       -- a dataframe
+#     col_name -- the name of the column in quotes
+#     freq_prop(df, "Gender")
+#     """
+#     # Get the total sample size from the column
+#     N = str(df.shape[0])
 
-    # If the input column type is categorical, then do not sort the value
-    if isinstance(df[col_name].dtype, pd.CategoricalDtype):
-        out = GT(pd.DataFrame(
-            (df[col_name].fillna("Missing", inplace = False).value_counts(sort = False).astype(str)) +
-            ' (' +
-            (df[col_name].fillna("Missing", inplace = False).value_counts(normalize = True, sort = False).mul(100).round(1).astype(str) + '%)'))
-            .reset_index()
-            .rename(columns = {0:("N = " + N)})
-            )
-    else:
-    # Else display with default behavior which is to sort
-        out = GT(pd.DataFrame(
-            (df[col_name].fillna("Missing", inplace = False).value_counts().astype(str)) +
-            ' (' +
-            (df[col_name].fillna("Missing", inplace = False).value_counts(normalize = True).mul(100).round(1).astype(str) + '%)'))
-            .reset_index()
-            .rename(columns = {0:("N = " + N)})
-            )
+#     # If the input column type is categorical, then do not sort the value
+#     if isinstance(df[col_name].dtype, pd.CategoricalDtype):
+#         out = GT(pd.DataFrame(
+#             (df[col_name].fillna("Missing", inplace = False).value_counts(sort = False).astype(str)) +
+#             ' (' +
+#             (df[col_name].fillna("Missing", inplace = False).value_counts(normalize = True, sort = False).mul(100).round(1).astype(str) + '%)'))
+#             .reset_index()
+#             .rename(columns = {0:("N = " + N)})
+#             )
+#     else:
+#     # Else display with default behavior which is to sort
+#         out = GT(pd.DataFrame(
+#             (df[col_name].fillna("Missing", inplace = False).value_counts().astype(str)) +
+#             ' (' +
+#             (df[col_name].fillna("Missing", inplace = False).value_counts(normalize = True).mul(100).round(1).astype(str) + '%)'))
+#             .reset_index()
+#             .rename(columns = {0:("N = " + N)})
+#             )
     
-    return(out)
+#     return(out)
 
 ```
 
 ```{python}
-def summarize(data, column):
-    """
-    Generate a table with the mean and standard deviation of a continuous variable.
+# def summarize(data, column):
+#     """
+#     Generate a table with the mean and standard deviation of a continuous variable.
 
-    Parameters:
-    - data (pd.DataFrame): The dataset
-    - column (str): The name of the continuous variable
+#     Parameters:
+#     - data (pd.DataFrame): The dataset
+#     - column (str): The name of the continuous variable
 
-    Returns:
-    - GT object displaying the mean and standard deviation
-    """
-    N = data[column].notna().sum().astype(str)
+#     Returns:
+#     - GT object displaying the mean and standard deviation
+#     """
+#     N = data[column].notna().sum().astype(str)
 
-    summary = (GT(pd.DataFrame({
-    "Characteristic": [column],
-    "Value": [f"{data[column].mean():.2f} ({data[column].std():.2f})"]
-    }).rename(columns = {"Value":("N = " + N )}))
-    .tab_source_note(source_note=html("<sup>1</sup> Mean (SD)")))
+#     summary = (GT(pd.DataFrame({
+#     "Characteristic": [column],
+#     "Value": [f"{data[column].mean():.2f} ({data[column].std():.2f})"]
+#     }).rename(columns = {"Value":("N = " + N )}))
+#     .tab_source_note(source_note=html("<sup>1</sup> Mean (SD)")))
 
-    return summary
+#     return summary
 ```
 
 ```{python}
@@ -98,7 +100,7 @@ data = pd.concat([data, oh], ignore_index=True)
 ```{python}
 # Load the mapper
 # The mapper file has the mapping between the question text/label and the column name
-mapper = pd.read_csv(here("scripts/njh_data/mapper.csv"), header = 0)
+mapper = pd.read_csv(here("scripts/njh_data/text_question_map.csv"), header = 0)
 ```
 
 # Total number of participants
@@ -287,9 +289,9 @@ freq_prop(data.query("`SI 5b` == 'Yes'"), 'SI 6b')
 freq_prop(data.query("`SI 5b` == 'Yes'"), 'Cigars Per Week (SI 7b)')
 ```
 
-### Are the cigars you usually smoke menthol cigars?
+### Are the cigars you usually smoke menthol cigars? (MA only)
 ```{python}
-freq_prop(data.query("`SI 5b` == 'Yes'"), 'OI 7b')
+freq_prop(data.query("`SI 5b` == 'Yes' and `State Client` == 'MA'"), 'OI 7b')
 ```
 
 ### How soon after you wake, do you first smoke a cigar, cigarillo, or little cigar?
@@ -418,16 +420,15 @@ freq_prop(data.query("`SI 5e` == 'Yes'"), 'SI 10e')
 <!-- ----------------------- OTHER STOP ---------------------------------- -->
 
 
-
-
 # Have you used an e-cigarette or other electronic “vaping” product in the past 30 days?
 ```{python}
 freq_prop(data, 'SI 5F')
 ```
 
-# Is the vaping product you usually use menthol flavored? 
+# Is the vaping product you usually use menthol flavored? (MA only)
+* Branches from SI - 5F == "Yes"
 ```{python}
-freq_prop(data, 'OI 7f')
+freq_prop(data.query("`SI 5F` == 'Yes' and `State Client` == 'MA'"), 'OI 7f')
 ```
 
 # How soon after you wake, do you use e-cigarette or other electronic “vaping” products?
