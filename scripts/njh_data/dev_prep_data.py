@@ -13,12 +13,20 @@
 # because they are named as SI 1, SI5a, or OI 7b as examples. In order to make
 # these columns human readable, this script will import state specific code
 # books to determine the intake questions that correspond to the ambiguous
-# column names 
+# column names.
+
+# TO-DO:
+# 1. Determine which states offered the default, american india, and youth 
+# versions of each question. Determine if SI 18e is the question that branches
+# the american indian version to determine the denominators. Reached out to 
+# Amanda Proctor at NJH on 7/31/2025.
+# 2. Some questions are asked on intake while others are asked on eligibility
+# Determine which question comes from what codebook.
 # #############################################################################
  
 # Import libraries ------------------------------------------------------------
 import pandas as pd
-# import numpy as np
+import numpy as np
 import os
 
 # Read in the data extract ---------------------------------------------------
@@ -72,11 +80,10 @@ for x in files['file']:
 
   # Capture the MDS Question Ids, add the state, then append to the question 
   # map
-  questions = pd.DataFrame(temp['MDS Question Id'].dropna())
+  questions = temp[['Attribute', 'MDS Question Id']].dropna()
   state = files[files['file'] == x]['state'].iloc[0]
   questions['state'] = state
   state_question_map = pd.concat([state_question_map, questions], ignore_index = True)
-
 
   # Get a list of column names that need to have the question text
   to_be_filled = question_id_map[question_id_map['Question Text'].isna()][['MDS Question Id']]
@@ -134,7 +141,15 @@ state_counts = (state_question_map
   .groupby("state")['MDS Question Id']
   .count())
 
-# * MA asks two additional questions out of the current list of states
+state_question_map["Attribute"] = np.where(
+  state_question_map["Attribute"].str.contains("American"), "American Indian",
+  np.where(
+    state_question_map["Attribute"].str.contains("Yout"), "Youth",
+    "Default"
+  )
+)
+
+# * Massachusetts MA asks two additional questions out of the current list of states
 # as of 07/28/2025
 
 state_question_map['asked'] = 1  # Create a column of 1s
@@ -142,11 +157,11 @@ state_question_map['asked'] = 1  # Create a column of 1s
 state_question_map = state_question_map.drop_duplicates()
 
 # Pivot wider with one row per MDS Question Id, and a column per state
-result = state_question_map.pivot_table(index='MDS Question Id', 
-                        columns='state', 
+result = state_question_map.pivot_table(index=['state', 'MDS Question Id'], 
+                        columns='Attribute', 
                         values='asked', 
                         aggfunc='max', 
-                        fill_value=0)
+                        fill_value=0).reset_index()
 
 # The questions that MA asks that are additional ar OI 7b and OI 7f, which asks
 # if cigars or vaping in the parent question are  menthol

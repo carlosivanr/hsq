@@ -63,7 +63,7 @@ get_hsq_data <- function() {
   response <- httr::POST(url, body = formData, encode = "form")
 
   # Create data frame from response object
-  survey_0mo <- httr::content(response)
+  survey_0mo <- httr::content(response, show_col_types = FALSE)
 
   # Cull columns
   survey_0mo %<>%
@@ -84,7 +84,7 @@ get_hsq_data <- function() {
   response <- httr::POST(url, body = formData, encode = "form")
 
   # Create data frame from response object
-  survey_3mo <- httr::content(response)
+  survey_3mo <- httr::content(response, show_col_types = FALSE)
 
   # Set the names of the columns where the 3mo suffix has been removed
   names_to_replace <- sub("_3m", "", names(survey_3mo))
@@ -107,7 +107,7 @@ get_hsq_data <- function() {
   response <- httr::POST(url, body = formData, encode = "form")
 
   # Create data frame from response object
-  survey_6mo <- httr::content(response)
+  survey_6mo <- httr::content(response, show_col_types = FALSE)
 
   # Set the names of the columns where the 3mo suffix has been removed
   names_to_replace <- sub("_6m", "", names(survey_6mo))
@@ -141,7 +141,7 @@ get_hsq_data <- function() {
   response <- httr::POST(url, body = formData, encode = "form")
 
   # Create data frame from response object
-  survey_9mo <- httr::content(response)
+  survey_9mo <- httr::content(response, show_col_types = FALSE)
 
   # Set the names of the columns where the 3mo suffix has been removed
   names_to_replace <- sub("_9m", "", names(survey_9mo))
@@ -167,7 +167,7 @@ get_hsq_data <- function() {
   response <- httr::POST(url, body = formData, encode = "form")
 
   # Create data frame from response object
-  survey_12mo <- httr::content(response)
+  survey_12mo <- httr::content(response, show_col_types = FALSE)
 
   # Set event name
   survey_12mo %<>%
@@ -217,7 +217,7 @@ get_hsq_data <- function() {
   response <- httr::POST(url, body = formData, encode = "form")
 
   # Create data frame from response object
-  hsq_ids <- httr::content(response)
+  hsq_ids <- httr::content(response, show_col_types = FALSE)
 
   hsq_ids %<>%
     drop_na(hsqid) %>%

@@ -95,7 +95,7 @@ data_lst %<>%
                        gender = recode(gender, 
                         ",Man (including transman and transmasculine)" = "Man",
                         "Woman (including transwoman and transfeminine)" = "Woman",
-                        "Prefer to self-describe (non-binary, gender queer) please specify below" = "Prefer to self_describe"))
+                        "Prefer to self-describe (non-binary, gender queer) please specify below" = "Prefer to self-describe"))
               )
 ```
 

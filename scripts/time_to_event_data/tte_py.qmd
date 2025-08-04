@@ -37,11 +37,17 @@ jupyter: hsq_env
 #   attempts.
 # 3. Create a visualization to show how quit attempts is created using ppt.
 # 4. May need to adjust for social network values
+
+# 08/04/2025 - pull_report() function gave an error, certificate verify failed
+#   Attempted to pip install --upgrade certifi, but issue was not addressed.
+#   Issue addressed by suppressing warning in pull_report() function with
+#     the verify = False option.
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 ```
 
 ```{python}
 import pandas as pd
+
 pd.options.mode.copy_on_write = True
 
 import numpy as np
@@ -784,53 +790,50 @@ c = sas.submitLST("""
 
   /* Kaplan-Meier Analysis ----------------------------------------------------*/
   proc lifetest data = tte plot=(s);
-      time time*event(0);
+      time time*event_2wk(0);
       strata arm;
       title "Kaplan-Meier Analysis";
   run;
 
   /*  Proportional Hazards Regresion ------------------------------------------*/
-  title "PHREG - Gender";
-  proc phreg data=tte;
+  proc phreg data = tte;
     class arm gender race_eth / param=GLM;
-    model time*event(0) = arm | gender;
-    lsmeans arm*gender/ diff;
+    model time*event_2wk(0) = arm | gender;
+    lsmeans arm*gender / diff;
     lsmeans arm / diff;
     lsmeans gender / diff;
   run;
 
-  title "PHREG - Race/Ethnicity";
-  proc phreg data=tte;
+  proc phreg data = tte;
     class arm gender race_eth / param=GLM;
-    model time*event(0) = arm | race_eth;
+    model time*event_2wk(0) = arm | race_eth;
     lsmeans arm*race_eth / diff;
     lsmeans arm / diff;
     lsmeans race_eth / diff;
   run;
 
-  title "PHREG - Age_bin";
-  proc phreg data=tte;
-    class age_bin arm /  param=GLM;
-    model time*event(0) = arm | age_bin;
+  proc phreg data = tte;
+    class arm gender age_bin / param=GLM;
+    model time*event_2wk(0) = arm | age_bin;
     lsmeans arm*age_bin / diff;
     lsmeans arm / diff;
     lsmeans age_bin / diff;
   run;
 
-
   title "PHREG - unadjusted";
   proc phreg data=tte;
     class arm /  param=GLM;
-    model time*event(0) = arm;
+    model time*event_2wk(0) = arm;
     lsmeans arm / diff;
   run;
 
   title "PHREG - adjusted";
   proc phreg data=tte;
     class age_bin race_eth gender arm /  param=GLM;
-    model time*event(0) = arm age_bin race_eth gender;
+    model time*event_2wk(0) = arm age_bin race_eth gender;
     lsmeans arm / diff;
   run;
+
 
   ods exclude none;
   /* ///////////////////////////////////////////////////////////////////////// */
@@ -919,7 +922,7 @@ c = sas.submitLST("""
     model time*event_2wk(0) = arm | race_eth;
     lsmeans arm*race_eth / diff;
     lsmeans arm / diff;
-    lsmeans gender / diff;
+    lsmeans race_eth / diff;
   run;
 
   proc phreg data = tte;
