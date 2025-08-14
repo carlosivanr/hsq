@@ -1,0 +1,358 @@
+---
+title: "Baseline Characteristics"
+date: today
+format:
+  docx:
+    toc: true
+    embed-resources: true
+
+execute:
+  echo: false
+  warning: false
+---
+
+```{r, echo = FALSE, eval = FALSE}
+################################################################################
+# Carlos Rodriguez, PhD. CU Anschutz, Dept. of Fam. Medicine
+# Helpers stay quit - primary completion report
+
+# This report is designed to count frequencies and proportions of the missing
+# and non-missing values for the primary and secondary outcomes as defined in
+# the statistical analysis plan.
+
+# In addition, this report scores and summarizes the instruments used in the HSQ
+# surveys. Finally, this report will export .csv files for importing into SAS.
+################################################################################
+```
+
+```{r, load libraries, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+
+pacman::p_load(here,
+               tidyverse,
+               magrittr,
+               gtsummary,
+               Hmisc, 
+               gt,
+               install = FALSE)
+```
+
+```{r, echo = FALSE}
+# Loads the function that updates data from the hsq participant management project
+# source(here("Helpers-Stay-Quit", "03 Code/functions/get_hsq_data.R"))
+source(here("scripts/functions/get_hsq_data.R" ))
+
+
+# Load updated 0, 3, 6, 9, and 12 month survey data
+# This will include rows where participants were not randomized to a treatment
+# and represents the entire data set in the primary HSQ RedCap project
+data <- get_hsq_data()
+```
+
+```{r}
+# Create a combined list of data frames that have been filtered by a length of
+# time. Patients who were recently randomized, may have baseline survey data 
+# available, but may have not been in the study long enough to receive a follow
+# up survey. Including these patients in a count for a follow up survey would 
+# increase the denominator to the total number of participants and inflate the 
+# number of missing values, and produce aberrant proportions when tabulating.
+
+# To prevent counting patients who have not been in the study long enough to
+# receive a followup survey at a given time point, individual data sets are 
+# filtered according to the number of days since randomization + a 14 day period
+# to complete a survey. For example, to filter the 3 month data, patients must 
+# have been enrolled in the study for at least 90 + 14 or 104 days.
+
+# Data for the baseline survey are only filter to those that have been 
+# randomized to one of the treatment groups.
+
+data_lst <- list(
+  (data %>%
+  filter(event_name == "0mo") %>%
+  filter(!is.na(days_since_rand))),
+
+  (data %>%
+  filter(event_name == "3mo") %>%
+  filter(days_since_rand >= 90 + 14)),
+
+  (data %>%
+  filter(event_name == "6mo") %>%
+  filter(days_since_rand >= 180 + 14)),
+
+  (data %>%
+  filter(event_name == "9mo") %>%
+  filter(days_since_rand >= 270 + 14)),
+
+  (data %>%
+  filter(event_name == "12mo") %>%
+  filter(days_since_rand >= 365 + 14)))
+
+# Process variables
+data_lst %<>%
+  purrr::map( ~.x %>%
+                mutate(
+                       gender = recode(gender, 
+                        ",Man (including transman and transmasculine)" = "Man",
+                        "Woman (including transwoman and transfeminine)" = "Woman",
+                        "Prefer to self-describe (non-binary, gender queer) please specify below" = "Prefer to self-describe"))
+              )
+```
+
+```{r, data_lst indexes}
+# data_lst indexes
+# 1 ~ 0mo
+# 2 ~ 3mo
+# 3 ~ 6mo
+# 4 ~ 9mo
+# 5 ~ 12mo
+```
+
+# Total number of randomized patients in RedCap to date
+```{r}
+# Use the baseline survey time point to display the total number of randomized patients
+data_lst[[1]] %>%
+  select(arm) %>%
+  rename(Arm = arm) %>%
+  tbl_summary(digits = everything() ~ c(0,1)) %>%
+  as_gt()
+```
+
+```{r}
+n_randomized_pts <- data_lst[[1]] %>% nrow()
+```
+
+# Demographics 
+```{r}
+data_lst[[1]] %>% 
+  # mutate(arm = ifelse(arm == "1-  HSQ training - beginning of participation", "Intervention", "Control")) %>%
+  mutate(across(race___0:race____1, ~ ifelse(.x == "Checked", 1, 0))) %>%
+  mutate(Hispanic = eth,
+         "Black or African American" = race___0,
+         "Asian" = race___1,
+         "White/Caucasian" = race___2,
+         "Native Hawaiian or other Pacific Islander" = race___3,
+         "American Indian/Alaska Native" = race___4,
+         "Other" = race____66,
+         "Declined" = race____1,
+         Arm = arm,
+         Gender = gender,
+         Age = age) %>%
+  select(Arm, Age, Gender, Hispanic:Declined) %>%
+  tbl_summary(by = Arm,
+    statistic = list(Age ~ "{mean} ({sd})")
+  ) %>%
+  add_overall() %>%
+  bstfun::add_variable_grouping("Race" = c("Black or African American",
+         "Asian",
+         "White/Caucasian",
+         "Native Hawaiian or other Pacific Islander",
+         "American Indian/Alaska Native",
+         "Other",
+         "Declined")) %>%
+  as_gt()
+```
+
+# Drop out
+```{r}
+# pull SMS data
+# remove week 0, since it's more of a record keeping row
+# Group by week total number of rows is the denominator, for each week,
+# then count the number of those that responded vs not responded.
+```
+
+```{r, echo = FALSE}
+# Define get_redcap_report function which will retrieve a report from a given
+# RedCap project according to the report_id (assigned in RedCap)
+get_redcap_report <- function (token, report_id, labels = "raw"){
+    url <- "https://redcap.ucdenver.edu/api/"
+
+   formData <- list(token = token, content = "report", format = "csv",
+        report_id = report_id, csvDelimiter = "", rawOrLabel = labels,
+        rawOrLabelHeaders = "raw", exportCheckboxLabel = "false",
+        returnFormat = "csv")
+
+    response <- httr::POST(url, body = formData, encode = "form")
+
+    result <- httr::content(response)
+
+    return(result)
+}
+```
+
+```{r, echo = FALSE}
+# Retrieve SMS data from HSQ SMS Survey report
+sms <- get_redcap_report(token = Sys.getenv("HSQ_sms"),
+                                   report_id = "117325")
+```
+
+```{r, echo = FALSE, eval=FALSE}
+# If warning arises, use problems() to investigate.
+# warning arises because sms_survey_timestamp contains "[not completed]"
+problems(sms)
+```
+
+```{r, echo = FALSE}
+# Process the sms data set, by creating rows for which patients did not submit
+# an sms survey, in order to calculate the actual number of missing data
+sms %<>%
+  complete(record_id, redcap_event_name) %>% # Introduce rows with missing values for each possible sms week
+  group_by(record_id) %>%
+  fill(randomization_dtd, .direction = "downup") %>%
+  fill(sms_strt_dtd, .direction = "downup") %>%
+  fill(hsqid, .direction = "downup") %>%
+  fill(patientend_dtd, .direction = "downup") %>%
+  ungroup() %>%
+  filter(redcap_event_name != "week0_arm_1") %>% # this row contains housekeeping data and is not of interest
+  mutate(redcap_event_name = str_replace_all(redcap_event_name,
+                                             c("week1_" = "week01_",
+                                               "week2_" = "week02_",
+                                               "week3_" = "week03_",
+                                               "week4_" = "week04_",
+                                               "week5_" = "week05_",
+                                               "week6_" = "week06_",
+                                               "week7_" = "week07_",
+                                               "week8_" = "week08_",
+                                               "week9_" = "week09_"))) %>%
+  mutate(redcap_event_name = str_replace(redcap_event_name, "_arm_1", "")) %>%
+  mutate(weeks_since_rand = round(difftime(Sys.Date(), as.Date(randomization_dtd), unit = "weeks"))) %>%
+  mutate(week = as.numeric(str_replace(redcap_event_name, "week", ""))) %>%
+  arrange(record_id, week) %>%
+  select(-redcap_survey_identifier) %>%
+  mutate(sms_strt_dtd = as.Date(sms_strt_dtd),
+         sms_survey_timestamp = as.Date(sms_survey_timestamp))
+
+# Determine the length of time in weeks each participant has been enrolled in 
+# the study, starting from the randomization date
+weeks_in_study <-
+  sms %>%
+  select(record_id, weeks_since_rand) %>%
+  group_by(record_id) %>%
+  slice_head() %>%
+  ungroup()
+```
+
+```{r, echo = FALSE}
+# Create a wide dataframe from sms based off of the smoke1 variable
+wide <- sms %>%
+  # mutate(smoke1 = ifelse(is.na(smoke1), "Missing", "Not Missing")) %>%
+  select(record_id, redcap_event_name, smoke1) %>%
+  group_by(record_id) %>%
+  pivot_wider(names_from = redcap_event_name, values_from = smoke1) %>%
+  ungroup()
+
+# Get the names of the columns, except for record_id in the wide data frame
+col_names <- names(wide %>% select(-record_id))
+
+# Sort the names of the columns as they will determine how to place the Week #
+# in order for displaying in a table
+col_names <- col_names %>% sort()
+
+# Reorder the columns in the order of weeks
+wide %<>%
+  select(record_id, all_of(col_names))
+
+# Join wide with weeks in the study for each participant
+wide <- left_join(wide, weeks_in_study, by = "record_id")
+```
+
+```{r, echo = FALSE}
+# For each column, determine which ids should be included at a given time point
+# If a patient has only been enrolled for two weeks, they should not be included
+# in counts for the number of missing values of the 4 week time point bc they
+# haven't been in the study long enough.
+create_weeks_table <- function(data){
+  # Create an empty data frame to eventually convert into a gt table
+  output_tbl <-  NULL
+
+  # For each week, only the number of participants that are eligible, will be
+  # counted for the number of missing/not missing values
+    for (i in 1:length(col_names)){
+  
+    # set the week to filter the data
+    week <- as.numeric(str_replace(col_names[i], "week", ""))
+  
+    tbl <- data %>%
+      filter(weeks_since_rand >= week) %>%
+      select(all_of(col_names[i])) %>%
+      mutate(across(everything(), ~ ifelse(is.na(.), "Missing", "Not Missing"))) %>%
+      tbl_summary( digits = everything() ~ 2) %>%
+      as_tibble()
+    
+    # Capture the table names to be able to index dynamically when converting to 
+    # wide
+    tbl_names <- names(tbl)
+    
+    # convert tbl to wide using the index column names
+    tbl %<>% 
+      pivot_wider(names_from = tbl_names[1], 
+                  values_from = tbl_names[2])
+    
+    # Create a new column indicating the week
+    tbl %<>% mutate(Week = week)
+    
+    # Select columns and then re-order
+    tbl %<>% 
+      select(Missing:Week) %>%
+      select(Week, everything())
+    
+    # Capture the number of rows available for calculating frequencies and 
+    # proportions for each week
+    N_rows <- 
+      wide %>% 
+      filter(weeks_since_rand >= week) %>% 
+      nrow()
+    
+    # Create a new column with the total number of participants with available
+    # data for each week
+    tbl %<>% 
+      mutate(N = N_rows) %>%
+      select(Week, N, Missing, everything())
+    
+    # Append each new week's data to the next
+    output_tbl <- bind_rows(output_tbl, tbl)
+  
+    }
+   return(output_tbl)
+}
+
+output_tbl <- create_weeks_table(wide)
+```
+
+```{r}
+output_tbl %>% 
+  filter(Week %in% c(1, 24, 48)) %>% 
+  mutate("Percent of enrolled" = str_c(round((N / n_randomized_pts) * 100, 2), "%")) %>% 
+  gt()
+```
+
+
+# Demographics by state (quitline)
+```{r}
+data_lst[[1]] %>% 
+  # mutate(arm = ifelse(arm == "1-  HSQ training - beginning of participation", "Intervention", "Control")) %>%
+  mutate(across(race___0:race____1, ~ ifelse(.x == "Checked", 1, 0))) %>%
+  mutate(Hispanic = eth,
+         "Black or African American" = race___0,
+         "Asian" = race___1,
+         "White/Caucasian" = race___2,
+         "Native Hawaiian or other Pacific Islander" = race___3,
+         "American Indian/Alaska Native" = race___4,
+         "Other" = race____66,
+         "Declined" = race____1,
+         Arm = arm,
+         Gender = gender,
+         Age = age) %>%
+  select(quitline, Age, Gender, Hispanic:Declined) %>%
+  tbl_summary(by = quitline,
+    statistic = list(Age ~ "{mean} ({sd})")
+  ) %>%
+  add_overall() %>%
+  bstfun::add_variable_grouping("Race" = c("Black or African American",
+         "Asian",
+         "White/Caucasian",
+         "Native Hawaiian or other Pacific Islander",
+         "American Indian/Alaska Native",
+         "Other",
+         "Declined")) %>%
+  as_gt()
+```

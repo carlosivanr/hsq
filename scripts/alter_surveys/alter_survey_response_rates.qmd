@@ -1,0 +1,223 @@
+---
+title: "HSQ Alter Survey"
+date: today
+format:
+  html:
+    toc: true
+    html-math-method: katex
+    embed-resources: true
+
+execute:
+  echo: false
+  warning: false
+---
+
+```{r, echo = FALSE, eval = FALSE}
+################################################################################
+# Carlos Rodriguez, PhD. CU Anschutz, Dept. of Fam. Medicine
+# Helpers stay quit - Alter survey report
+################################################################################
+```
+
+```{r, load libraries, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+library(magrittr, include = "%<>%")
+pacman::p_load(here,
+               tidyverse,
+               gtsummary,
+               gt,
+               install = FALSE)
+```
+
+```{r}
+source(here("scripts/functions/get_redcap_data.R" ))
+```
+
+```{r}
+alter_data <- get_redcap_data(26172)
+alter_data <- as_tibble(alter_data)
+# data %<>%
+#   filter(asking_for_your_feedback_complete == 2)
+```
+
+# Number of total HSQ participants
+```{r}
+# Loads the function that updates data from the hsq participant management project
+# source(here("Helpers-Stay-Quit", "03 Code/functions/get_hsq_data.R"))
+source(here("scripts/functions/get_hsq_data.R" ))
+
+
+# Load updated 0, 3, 6, 9, and 12 month survey data
+# This will include rows where participants were not randomized to a treatment
+# and represents the entire data set in the primary HSQ RedCap project
+hsq_data <- get_hsq_data()
+
+data_lst <- list(
+  (hsq_data %>%
+  filter(event_name == "0mo") %>%
+  filter(!is.na(days_since_rand))),
+
+  (hsq_data %>%
+  filter(event_name == "3mo") %>%
+  filter(days_since_rand >= 90 + 14)),
+
+  (hsq_data %>%
+  filter(event_name == "6mo") %>%
+  filter(days_since_rand >= 180 + 14)),
+
+  (hsq_data %>%
+  filter(event_name == "9mo") %>%
+  filter(days_since_rand >= 270 + 14)),
+
+  (hsq_data %>%
+  filter(event_name == "12mo") %>%
+  filter(days_since_rand >= 365 + 14)))
+```
+
+
+```{r}
+hsq_ids <- data_lst[[1]] %>%
+  pull(hsqid)
+```
+
+```{r}
+#| eval: false
+
+# #############################################################################
+# Data QA: 
+
+# Originally the total number of HSQ participants was at 1111, as of 8/13/25.
+# The reason for this was because participants that were not randomized had 
+# not been filtered out. In addition, one participant record_id 637 had been
+# randomized, but later on dropped out of the study. As a result, the alter
+# survey hsqids need to be filtered by the hsqids in the participant managment
+# redcap project. data_lst[[1]] references the hsqids at the baseline survey
+# timepoint.
+# #############################################################################
+
+# The total number of unique ids in the hsq participant management redcap
+hsq_data %>% 
+  summarise(n = n_distinct(hsqid))
+
+# The total number of ids that have been randomized
+# * gives 923
+hsq_data %>%
+  filter(!is.na(randomization_dtd)) %>%
+  summarise(n = n_distinct(hsqid))
+
+# Capture the hsq_ids that have been randomized, using survey0 to match the primary outcomes
+# completion report
+# * gives 922
+hsq_ids <- data_lst[[1]] %>%
+  pull(hsqid)
+
+# Why is there a discrepancy?
+# * record id 637 seems to be the discrepancy, for some reason they have a 9month survey but no
+# 0mo 3mo, or 6mo surveys
+hsq_data %>%
+  filter(!is.na(randomization_dtd)) %>%
+  filter(!hsqid %in% hsq_ids)
+
+view <- hsq_data %>%
+  filter(!is.na(randomization_dtd)) %>%
+  filter(!hsqid %in% hsq_ids)
+```
+
+```{r}
+hsq_data %<>%
+  filter(hsqid %in% hsq_ids)
+```
+
+```{r}
+hsq_data %>%
+  group_by(record_id) %>%
+  slice_head() %>%
+  ungroup() %>%
+  summarise(n_unique_pts = n_distinct(record_id)) %>%
+  gt::gt()
+
+n_pts <- hsq_data %>%
+  group_by(record_id) %>%
+  slice_head() %>%
+  ungroup() %>%
+  summarise(n_unique_pts = n_distinct(record_id))
+```
+
+# Number of unique HSQ participants that responded "Yes" to having a helping conversation
+```{r}
+alter_data %>%
+  summarise(n_unique_hc_pts = n_distinct(hsqid)) %>%
+  gt::gt()
+```
+
+```{r}
+n_hc_pts <- alter_data %>%
+  summarise(n_unique_hc_pts = n_distinct(hsqid))
+```
+
+# Proportion of HSQ participants that reported having a helping conversation
+```{r}
+bind_cols(
+  n_pts,
+  n_hc_pts
+) %>%
+mutate(proportion = round((n_unique_hc_pts / n_unique_pts) * 100, 2)) %>%
+mutate(proportion = str_c(proportion, "%")) %>%
+gt::gt()
+```
+
+# Number of unique HSQ participants with at least one completed alter survey
+```{r}
+alter_data %>%
+  filter(asking_for_your_feedback_complete == 2) %>%
+  group_by(hsqid) %>%
+  count() %>%
+  ungroup() %>%
+  summarise(n_unique = n_distinct(hsqid)) %>%
+  gt::gt()
+```
+
+# Response rate for completing at least one alter survey among those that had reported having a helping conversation
+```{r}
+n_alter_complete <- alter_data %>%
+  filter(asking_for_your_feedback_complete == 2) %>%
+  group_by(hsqid) %>%
+  count() %>%
+  ungroup() %>%
+  summarise(n_unique_complete = n_distinct(hsqid)) 
+
+
+bind_cols(
+  n_hc_pts,
+  n_alter_complete) %>%
+mutate(proportion = round((n_unique_complete / n_unique_hc_pts) * 100, 2)) %>%
+mutate(proportion = str_c(proportion, "%")) %>%
+gt::gt()
+```
+
+# Overall response rate out of total number of alter surveys
+```{r}
+alter_data %>%
+  mutate(alter_survey_complete = ifelse(
+    asking_for_your_feedback_complete == 2, "Complete", "Incomplete")) %>%
+  select(alter_survey_complete) %>%
+  tbl_summary()
+```
+
+```{r}
+#| eval: false
+# Count the straight liners from a4 through a11
+straight_line_nas <- alter_data %>%
+  select(a4:a11) %>%
+  mutate(across(everything(), ~ is.na(.x))) %>%
+  mutate(n_nas = rowSums(.)) %>%
+  mutate(straight_line_na = ifelse(n_nas == 10, 1, 0)) %>%
+  select(straight_line_na)
+
+test <- bind_cols(alter_data, straight_line_nas) %>%
+  mutate(asking_for_your_feedback_complete = ifelse(asking_for_your_feedback_complete == 0 & straight_line_nas == 0, 2, asking_for_your_feedback_complete)) %>%
+  mutate(alter_survey_complete = ifelse(
+    asking_for_your_feedback_complete == 2, "Complete", "Incomplete")) %>%
+  select(alter_survey_complete) %>%
+  tbl_summary()
+```

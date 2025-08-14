@@ -131,10 +131,13 @@ data_lst[[1]] %>%
          "Other" = race____66,
          "Declined" = race____1,
          Arm = arm,
-         Gender = gender) %>%
-  select(Arm, Gender, Hispanic:Declined) %>%
-  mutate(Gender = fct_na_value_to_level(factor(Gender, levels = c("Man", "Woman", "Prefer to self-describe")), level = "Missing")) %>%
-  tbl_summary(by = Arm) %>%
+         Gender = gender,
+         Age = age) %>%
+  select(Arm, Age, Gender, Hispanic:Declined) %>%
+  # mutate(Gender = fct_na_value_to_level(factor(Gender, levels = c("Man", "Woman", "Prefer to self-describe")), level = "Missing")) %>%
+  tbl_summary(by = Arm,
+    statistic = list(Age ~ "{mean} ({sd})")
+  ) %>%
   bstfun::add_variable_grouping("Race" = c("Black or African American",
          "Asian",
          "White/Caucasian",
