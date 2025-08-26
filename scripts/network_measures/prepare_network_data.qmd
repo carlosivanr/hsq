@@ -1,0 +1,426 @@
+---
+title: "HSQ - Network conference 2025"
+date: "`r Sys.Date()`"
+format:
+  html:
+    embed-resources: true
+    toc: true
+    number-sections: false
+    
+execute: 
+  echo: false
+  warning: false
+---
+
+```{r}
+library(tidyverse)
+library(gtsummary) 
+library(here) 
+library(egor) 
+library(igraph)
+# library(MASS) # Required but conflicts with dplyr::select()
+```
+
+```{r}
+# Set in environmental variables in Windows
+# Token generated in RedCap once API access is granted
+.token <- Sys.getenv("HSQ_api")
+
+# Set Redcap URL
+url <- "https://redcap.ucdenver.edu/api/"
+```
+
+```{r}
+# load the field names used to cull the columns from Camille's
+# network visualization script.
+field_names <- read_csv(
+  here("scripts/network_measures/data/field_names.csv"),
+  show_col_types = FALSE
+)
+
+field_names <- field_names %>%
+    filter(!grepl("diagram", field_name, ignore.case = TRUE)) %>%
+    filter(!grepl("patientend", field_name, ignore.case = TRUE)) %>%
+    filter(field_name != "baseline_complete")
+```
+
+```{r}
+# Load 0mo survey data
+# Set formData, contains token and other parameters
+# Set the report_id to pull from
+formData <- list("token"=.token,
+                 content='report',
+                 format='csv',
+                 report_id='112310',
+                 csvDelimiter='',
+                 rawOrLabel='label',
+                 rawOrLabelHeaders='raw',
+                 exportCheckboxLabel='false',
+                 returnFormat='json'
+)
+
+# Create response object using formData
+response <- httr::POST(url, body = formData, encode = "form")
+
+# Create needs_qual_diagram which is the main data frame for generating
+# network diagrams
+survey_0mo <- httr::content(response)
+
+# Create a separate data frame with the alter and tie cols
+survey_0mo <- survey_0mo %>%
+  select(gender, age, arm, all_of(field_names$field_name)) %>%
+  mutate(event_name = "0mo")
+```
+
+```{r}
+# Load 12mo survey data
+# Set formData, contains token and other parameters
+# Set the report_id to pull from
+formData <- list("token"=.token,
+                 content='report',
+                 format='csv',
+                 report_id='112314',
+                 csvDelimiter='',
+                 rawOrLabel='label',
+                 rawOrLabelHeaders='raw',
+                 exportCheckboxLabel='false',
+                 returnFormat='json'
+)
+
+# Create response object using formData
+response <- httr::POST(url, body = formData, encode = "form")
+
+# Create needs_qual_diagram which is the main data frame for generating
+# network diagrams
+survey_12mo <- httr::content(response)
+
+# Modify the names of the survey 12m timepoint
+survey_12mo_names <- names(survey_12mo)
+
+# Replace the '_12m' string in the names
+new_names <- str_replace(survey_12mo_names, "_12m", "")
+
+colnames(survey_12mo) <- new_names
+
+# Create a separate data frame with the alter and tie cols
+survey_12mo <- survey_12mo %>%
+  select(all_of(field_names$field_name)) %>%
+  mutate(event_name = "12mo")
+```
+
+```{r}
+# # Set formData, contains token and other parameters
+# # Set the report_id to pull from
+# formData <- list("token"=.token,
+#                  content='report',
+#                  format='csv',
+#                  report_id='153246',
+#                  csvDelimiter='',
+#                  rawOrLabel='label',
+#                  rawOrLabelHeaders='raw',
+#                  exportCheckboxLabel='false',
+#                  returnFormat='json'
+# )
+
+# # Create response object using formData
+# response <- httr::POST(url, body = formData, encode = "form")
+
+# # Create needs_qual_diagram which is the main data frame for generating
+# # network diagrams
+# all_data <- httr::content(response)
+```
+
+```{r}
+# Recode the ego and alter gender identity values to be congruent with one another since the
+# options for the ego were different than the options for the alters.
+# all_data <- all_data %>%
+#   mutate(
+#     gender = case_match(
+#       gender,
+#       ",Man (including transman and transmasculine)" ~  "Man (including transman and transmasculine)",
+#       "Prefer to self-describe (non-binary, gender queer) please specify below" ~ "Other", 
+#       .default = gender)
+#   ) %>% 
+#   mutate(across(starts_with("altgender_"), 
+#     ~ case_match(
+#       .x,
+#       "Different Gender Identity (including non-binary and gender queer)" ~ "Other",
+#       .default = .x))
+#   ) %>%
+#   mutate(age_cat = ifelse(age >= 18 & age <= 64, "18 - 64", "65 or older")) %>%
+#   mutate(arm = ifelse(arm == "2 - HSQ training - end of participation", "Control", "Intervention"))
+```
+
+```{r}
+# Create a separate data frame with the alter and tie cols
+# data <- all_data %>%
+#   select(gender, age_cat, all_of(field_names$field_name))
+```
+
+```{r}
+data <- bind_rows(survey_0mo, survey_12mo) %>%
+  group_by(record_id) %>%
+  fill(gender, age, arm) %>%
+  ungroup() %>%
+  mutate(
+    gender = case_match(
+      gender,
+      ",Man (including transman and transmasculine)" ~  "Man (including transman and transmasculine)",
+      "Prefer to self-describe (non-binary, gender queer) please specify below" ~ "Other", 
+      .default = gender)
+  ) %>% 
+  mutate(across(starts_with("altgender_"), 
+    ~ case_match(
+      .x,
+      "Different Gender Identity (including non-binary and gender queer)" ~ "Other",
+      .default = .x))
+  ) %>%
+  mutate(age_cat = ifelse(age >= 18 & age <= 64, "18 - 64", "65 or older")) %>%
+  mutate(arm = ifelse(arm == "2 - HSQ training - end of participation", "Control", "Intervention")) %>%
+  mutate(ego_id = str_c(record_id, "_", event_name)) %>%
+  select(gender, arm, age_cat, ego_id, all_of(field_names$field_name))
+```
+
+```{r, warning = FALSE, message = FALSE}
+# Reworked code from Camille's approach
+# ─── Parameters ───────────────────────────────────────────────
+
+# these cols will represent alter names, 25 total in a data frame
+# that will be culled
+namerange <- 2:26       
+
+# these cols will represent the ties or links, up to 300 because
+# 25 * (25 -1) / 2.
+tierange  <- 502:801    
+
+# ─── Clean Input Data ─────────────────────────────────────────
+# Create a data frame where only the relevant columns and rows 
+# are retained. The filter verb should drop any rows where any
+# of the alger names or alter-alter ties are missing, and should
+# negate the need for a mask downstream.
+# n.b. add additional columns after the namerange and tierange
+# otherwise the numerical indexing is disrupted.
+filtered_ego_data <- data %>%
+  select(ego_id, alter1:m24_25, gender, age_cat) %>%
+  rowwise() %>%
+  filter(
+    all(!is.na(across(all_of(namerange)))) &
+    all(!is.na(across(all_of(tierange))))
+  ) %>%
+  mutate(across(
+    .cols = c(starts_with("alttobacco_a"), starts_with("altsmoke_a")),
+    .fns  = ~ case_when(
+      .x == "Checked"   ~ "Yes",
+      .x == "Unchecked" ~ "No",
+      TRUE              ~ NA_character_
+    )
+  )) %>%
+  ungroup()
+
+# ─── Convert to egor Object ───────────────────────────────────
+# Specify the start and stop cols of the alter attributes such
+# as gender, age, smoking status, etc. The input data is expected
+# to be arranged in such a manner that aa.first.var through the 
+# last column all contain the alter-to-alter tie block of cols.
+# n.b. will produce a warning, but it's benign because invalid
+# entries will be filtered out in a subsequent step.
+ego_network_long <- invisible(onefile_to_egor(
+  egos            = filtered_ego_data,
+  ID.vars         = list(ego = "ego_id"),
+  attr.start.col  = "altgender_a1",
+  attr.end.col    = "altquitnow_a25",
+  max.alters      = 25,
+  aa.first.var    = "m1_2"
+))
+
+# ─── Identify Valid Alters ────────────────────────────────────
+# Take the long ego network objected and flatten it out to make
+# it a functionally wide tibble, then sort, and select the
+# relevant columns of the alter names in order to determine if
+# a value is present. Finally, convert back to long to use as a
+# mask.
+# n.b. This is a bit redundant since all rows with missing alter
+# names or missing alter-alter ties are dropped. 
+alter_mask <- ego_network_long %>%
+  as_tibble() %>%
+  arrange(.egoID) %>%
+  select(alter1:alter25) %>%
+  mutate(across(everything(), ~ !is.na(.))) %>%
+  pivot_longer(cols = everything()) %>%
+  pull(value)
+
+# ─── Filter Alters and Alter-Alter Ties ───────────────────────
+# In this step, only ties which are Somewhat likely or Very 
+# likely are retained as a measure of tie/link.
+final_ego_network <- ego_network_long %>%
+  activate(alter) %>%
+  filter(alter_mask) %>%
+  activate(aatie) %>%
+  filter(weight != "" & weight != "Not at all likely")
+
+# ─── Add Alter Names ──────────────────────────────────────────
+final_ego_network$alter$aname <- c(t(final_ego_network$ego[, 2:26]))
+
+# ─── Numeric Tie Weights ──────────────────────────────────────
+# Create a numeric tie weight to supplement the binary ties.
+# n.b. *** unsure how values of 1 and 3 were determined, but
+# could be used to calculated weighted network measures.
+final_ego_network$aatie <- final_ego_network$aatie %>%
+  mutate(weight2 = case_when(
+    weight == "Somewhat likely" ~ 1,
+    weight == "Very likely"     ~ 3,
+    TRUE                        ~ NA_real_
+  ))
+```
+
+```{r}
+data <- data %>%
+  filter(ego_id %in% filtered_ego_data$ego_id)
+
+# Filter all_data to the participants of interest
+  # all_data <- all_data  %>%
+  #   filter(record_id %in% filtered_ego_data$record_id)
+```
+
+
+```{r}
+# ─── Parallel Vectors ─────────────────────────────────────────
+# Create two vectors of the same length to iterate with purrr
+# to be used with functions from the igraph package
+graphs <- as_igraph(final_ego_network, include.ego = FALSE)
+ego_ids <- final_ego_network$ego$.egoID
+```
+
+<!-- Density -->
+```{r}
+# # ─── Vectorized for-loop ──────────────────────────────────────
+# # For each x and y, compute the density and bind to the ego id,
+# # collect all results and output to a data frame.
+# density_results <- map2_dfr(graphs, ego_ids, ~ {
+#   data.frame(ego = .y, density = edge_density(.x))
+# })
+
+
+# ─── egoR version ─────────────────────────────────────────────
+density_results <- ego_density(final_ego_network)
+```
+
+<!-- Number of components -->
+```{r}
+# Number of components
+# components(graphs[[1]])$no # test
+
+# ─── Vectorized for-loop ──────────────────────────────────────
+# For each x and y, compute the density and bind to the ego id,
+# collect all results and output to a data frame.
+components_results <- map2_dfr(graphs, ego_ids, ~ {
+  data.frame(ego = .y, n_components = components(.x)$no)
+}) %>%
+rename(".egoID" = "ego")
+```
+
+
+<!-- Betweenness Centralization -->
+```{r}
+# betweenness centralization
+# igraph::centralization.betweenness(graphs[[1]], normalized = TRUE)$centralization
+# resulted in a warning to use centr_betw().
+# centr_betw(graphs[[1]])$centralization # test
+
+# ─── Vectorized for-loop ──────────────────────────────────────
+# For each x and y, compute the density and bind to the ego id,
+# collect all results and output to a data frame. Since two
+# pacakges are used to compute the network metrics, perform
+# harmonization on the ego column name.
+btw_centr_results <- map2_dfr(graphs, ego_ids, ~ {
+  data.frame(ego = .y, btw_centr = centr_betw(.x)$centralization)
+}) %>%
+rename(".egoID" = "ego")
+```
+
+<!-- Degree Centralization -->
+```{r}
+# degree centralization
+# centr_degree(graphs[[1]])$centralization
+
+# ─── Vectorized for-loop ──────────────────────────────────────
+# For each x and y, compute the density and bind to the ego id,
+# collect all results and output to a data frame. Since two
+# pacakges are used to compute the network metrics, perform
+# harmonization on the ego column name.
+deg_centr_results <- map2_dfr(graphs, ego_ids, ~ {
+  data.frame(ego = .y, deg_centr = centr_degree(.x)$centralization)
+}) %>%
+rename(".egoID" = "ego")
+```
+
+<!-- homophily gender -->
+```{r}
+# homophily
+comp_ei_results_gender <- comp_ei(
+  final_ego_network, 
+  ego.attr = "gender", 
+  alt.attr = "altgender_a") %>%
+  rename(homophily_gender = ei)
+```
+
+
+<!-- homophily age_cat -->
+```{r}
+comp_ei_results_age_cat <- comp_ei(
+  final_ego_network, 
+  ego.attr = "age_cat", 
+  alt.attr = "altage_a") %>%
+  rename(homophily_age_cat = ei)
+```
+
+
+```{r}
+# Stitch together network results
+network_metrics <- reduce(list(
+  density_results, #.egoID
+  components_results, # ego
+  btw_centr_results, # ego
+  deg_centr_results, # ego
+  comp_ei_results_gender, #.egoID
+  comp_ei_results_age_cat #.egoID
+), left_join, by = ".egoID")
+
+```
+
+
+<!-- Percent of alters supporting quitting -->
+```{r}
+percent_support_quit <- data %>%
+  select(ego_id, arm, starts_with("altsupport_a")) %>%
+  mutate(across(starts_with("altsupport_a"), ~ ifelse(.x == "Yes", 1, 0))) %>%
+  mutate(row_sum = rowSums(select(., starts_with("altsupport_a")))) %>%
+  mutate(perc_supp_quit = (row_sum / 25)) %>%
+  select(ego_id, perc_supp_quit)
+```
+
+```{r}
+data <- data %>%
+  left_join(
+    percent_support_quit,
+    by = "ego_id")
+```
+
+
+```{r}
+data <- data %>%
+  left_join(
+    network_metrics,
+    by = c("ego_id" = ".egoID")
+  )
+
+data <- data %>%
+  mutate(event_name = sub("^[^_]*_", "", ego_id),
+         record_id = sub("_.*", "", ego_id))
+```
+
+
+```{r}
+data %>%
+  write_csv(here("analyses_sas", "data", "hsq_network_measures.csv"), na = "")
+```

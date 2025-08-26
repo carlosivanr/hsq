@@ -19,10 +19,14 @@ execute:
 
 # This report is designed to count frequencies and proportions of the missing
 # and non-missing values for the primary and secondary outcomes as defined in
-# the statistical analysis plan.
+# the statistical analysis plan for the HSQ project.
 
-# In addition, this report scores and summarizes the instruments used in the HSQ
-# surveys. Finally, this report will export .csv files for importing into SAS.
+# In addition, this report scores and summarizes the instruments used in the 
+# HSQ surveys. This report does not manipulate any of the network measures.
+# Those are handled by a different script.
+
+# Finally, this report will export the data to a .csv file for compiling with
+# other sources of data such as network measures, and time to event outcomes.
 ################################################################################
 ```
 
@@ -1007,6 +1011,9 @@ flat_lst <- bind_rows(
 )
 
 flat_lst %>%
+  select(-record_id) %>%
+  select(hsqid, arm, event_name, everything()) %>%
+  arrange(hsqid, event_name) %>%
   mutate_if(is.Date, as.character) %>%
   mutate_if(is.difftime, as.numeric) %>%
   write_csv(here("analyses_sas", "data", "hsq_data.csv"), na = "")
