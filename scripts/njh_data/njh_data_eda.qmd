@@ -521,15 +521,6 @@ freq_prop(data.query("`OI 24` == 'Yes'"), 'OI 24c')
 ```
 
 
-
-
-
-
-
-
-
-
-
 <!-- # ----------------- STANDARD INTAKE (DEMOGRAPHIC) ----------------------------- -->
 
 # What is the highest level of education you have completed?
@@ -600,4 +591,18 @@ freq_prop(data, 'UT 6')
 # Other:
 ```{python}
 freq_prop(data, 'UT 9')
+```
+
+
+
+```{python}
+# Save data to .csv
+data.to_csv(
+  "C:\\Users\\rodrica2\\OneDrive - The University of Colorado Denver\\Documents\\DFM\\projects\\hsq\\analyses_sas\data\\njh_data.csv", 
+  index= False)
+
+mapper.to_csv(
+  "C:\\Users\\rodrica2\\OneDrive - The University of Colorado Denver\\Documents\\DFM\\projects\\hsq\\analyses_sas\data\\njh_dict.csv", 
+  index= False
+)
 ```

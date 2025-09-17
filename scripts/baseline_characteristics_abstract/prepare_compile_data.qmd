@@ -1,0 +1,158 @@
+---
+title: "Prepare and compile baseline characteristics data"
+format: html
+---
+
+```{r, load libraries, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+
+pacman::p_load(here,
+               tidyverse,
+               magrittr,
+               gtsummary,
+               Hmisc, 
+               gt,
+               install = FALSE)
+```
+
+```{r, echo = FALSE}
+# Loads the function that updates data from the hsq participant management project
+# source(here("Helpers-Stay-Quit", "03 Code/functions/get_hsq_data.R"))
+source(here("scripts/functions/get_hsq_data.R" ))
+
+
+# Load updated 0, 3, 6, 9, and 12 month survey data
+# This will include rows where participants were not randomized to a treatment
+# and represents the entire data set in the primary HSQ RedCap project
+data <- get_hsq_data()
+```
+
+```{r}
+# Create a combined list of data frames that have been filtered by a length of
+# time. Patients who were recently randomized, may have baseline survey data 
+# available, but may have not been in the study long enough to receive a follow
+# up survey. Including these patients in a count for a follow up survey would 
+# increase the denominator to the total number of participants and inflate the 
+# number of missing values, and produce aberrant proportions when tabulating.
+
+# To prevent counting patients who have not been in the study long enough to
+# receive a followup survey at a given time point, individual data sets are 
+# filtered according to the number of days since randomization + a 14 day period
+# to complete a survey. For example, to filter the 3 month data, patients must 
+# have been enrolled in the study for at least 90 + 14 or 104 days.
+
+# Data for the baseline survey are only filter to those that have been 
+# randomized to one of the treatment groups.
+
+data_lst <- list(
+  (data %>%
+  filter(event_name == "0mo") %>%
+  filter(!is.na(days_since_rand))),
+
+  (data %>%
+  filter(event_name == "3mo") %>%
+  filter(days_since_rand >= 90 + 14)),
+
+  (data %>%
+  filter(event_name == "6mo") %>%
+  filter(days_since_rand >= 180 + 14)),
+
+  (data %>%
+  filter(event_name == "9mo") %>%
+  filter(days_since_rand >= 270 + 14)),
+
+  (data %>%
+  filter(event_name == "12mo") %>%
+  filter(days_since_rand >= 365 + 14)))
+
+# Process variables
+data_lst %<>%
+  purrr::map( ~.x %>%
+                mutate(
+                       gender = recode(gender, 
+                        ",Man (including transman and transmasculine)" = "Man",
+                        "Woman (including transwoman and transfeminine)" = "Woman",
+                        "Prefer to self-describe (non-binary, gender queer) please specify below" = "Prefer to self-describe"))
+              )
+```
+
+```{r, data_lst indexes}
+# data_lst indexes
+# 1 ~ 0mo
+# 2 ~ 3mo
+# 3 ~ 6mo
+# 4 ~ 9mo
+# 5 ~ 12mo
+```
+
+
+
+## PHQ4 (ultra-brief screening scale for anxiety and depression)
+```{r}
+# PHQ4 (PH4): 
+#     - Collected at baseline, 3, 6, 9, and 12 months
+#     - 4 items phq_1:phq_4; 4-point Likert
+#     - ultra-brief screening scale for anxiety and depression
+#     - Composed of the first two items of the GAD7 and PHQ
+#     - Total score ranges from 0 through 12
+#     - Convert -1s to NA, then sum scores
+#     - Check how many do not have all 4 items answered
+#     - Items 1 and 2 correspond to GAD7 (anxiety)
+#     - Items 3 and 4 correspond to PHQ (depression)
+#     - Total sum score of psychological distress:
+#         - 0-2 - None
+#         - 3-5 - Mild
+#         - 6-8 - Moderate
+#         - 9-12 - Severe
+```
+
+```{r}
+# n.b. In cases where the responses are straightlined NA or "Prefer not to 
+# answer", rowSums(..., na.rm = TRUE) will return a 0, instead of the expected 
+# NA. To overcome this, multiply the rowSums(..., na.rm = TRUE) by NA raised to
+# to a value of TRUE or FALSE. NA^FALSE = 1, whereas NA^TRUE = NA. The TRUE/FALSE 
+# value of whether or not all questions are missing is given by 
+# !rowSums(!is.na(select(., phq_1:phq_4))), where TRUE indicates all values are
+# missing. Thus NA*TRUE will return NA which is used to multiply with the summed
+# scores and if the score is a 0 resulting from all NAs, it will result in an NA.
+```
+
+```{r}
+# Create anx, dep, and psy scores, which are sums of the individual sub scales 
+# and the overall psychological distress scores
+data_lst %<>%
+  purrr::map( ~.x %>%
+                mutate(across(phq_1:phq_4, ~recode(.,
+                                                   "Not at all" = 0,
+                                                   "Several days" = 1,
+                                                   "More than half the days" = 2,
+                                                   "Nearly every day" = 3,
+                                                   "Prefer not to answer" = NULL))) %>%
+                mutate(anx_score = rowSums(select(., phq_1:phq_2), na.rm = TRUE) * NA^!rowSums(!is.na(select(., phq_1:phq_2))),
+                       dep_score = rowSums(select(., phq_3:phq_4), na.rm = TRUE) * NA^!rowSums(!is.na(select(., phq_3:phq_4))),
+                       psy_score = rowSums(select(., phq_1:phq_4), na.rm = TRUE) * NA^!rowSums(!is.na(select(., phq_1:phq_4))),
+                       anx_bin = ifelse(anx_score >= 3, 1, 0),
+                       dep_bin = ifelse(dep_score >= 3, 1, 0),
+                       psy_cat = cut(psy_score,
+                                     breaks = c(-1,2,5,8,12),
+                                     labels = c("None (0-2)", "Mild (3-5)", "Moderate (6-8)", "Severe (9-12)")),
+                       PHQ4 = ifelse(is.na(psy_score), "Missing", "Not Missing"),
+                       Anxiety = ifelse(is.na(anx_score), "Missing", "Not Missing"),
+                       Depression = ifelse(is.na(dep_score), "Missing", "Not Missing")
+                       )
+  )
+```
+
+### Missing values of total summed scores of the PHQ4 (psychological distress), Anxiety (items 1-2), and Depression (items 3-4)
+```{r}
+# Display the data              
+data_lst %>%
+  purrr::map( ~.x %>%                
+              select(PHQ4, Anxiety, Depression) %>%
+                mutate(PHQ4 = factor(PHQ4, levels = c("Missing", "Not Missing"))) %>%
+              tbl_summary()
+  ) %>%
+  tbl_merge(.,
+          tab_spanner = spanner
+  )
+```

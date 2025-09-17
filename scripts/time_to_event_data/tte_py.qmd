@@ -702,6 +702,22 @@ for dur in durations:
     np.nan, 
     t_to_relapse[var_name]
   )
+```
+
+```{python}
+# Write out a data set to .csv
+
+# Reorder the columns
+t_to_relapse = t_to_relapse[[
+  'hsqid', 'arm', 'age', 'age_bin', 'gender', 'race_eth', 'quitline', 'status', 
+  'randomization_dtd', 'sms_strt_dtd', 'days_since_rand', 
+  'time_to_last_obs', 'time_to_relapse', 
+  'event', 'time', 'two_consecutive_relapse', 'event_2wk', 
+  'ever_relapse_24wk', 'ever_relapse_36wk', 'ever_relapse_48wk']]
+
+out_path = proj_root + "/analyses_sas/data/hsq_time_to_event_data.csv"
+
+t_to_relapse.to_csv(out_path, index=False)
 
 ```
 

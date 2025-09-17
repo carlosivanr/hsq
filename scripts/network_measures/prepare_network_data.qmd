@@ -1,5 +1,5 @@
 ---
-title: "HSQ - Network conference 2025"
+title: "HSQ - Network Data"
 date: "`r Sys.Date()`"
 format:
   html:
@@ -13,12 +13,25 @@ execute:
 ---
 
 ```{r}
+# /////////////////////////////////////////////////////////////////////////////
+# Carlos Rodriguez, PhD. CU Dept. of Family Medicine
+# 09/02/2025
+
+# Prepare Network Data
+
+# The following script prepares the baseline and 12month network measures from 
+# the social network portion of the HSQ Participant Management RedCap project.
+
+# Processed data is output to SAS HSQ/analyses_sas/data directory
+# /////////////////////////////////////////////////////////////////////////////
+```
+
+```{r}
 library(tidyverse)
 library(gtsummary) 
 library(here) 
 library(egor) 
 library(igraph)
-# library(MASS) # Required but conflicts with dplyr::select()
 ```
 
 ```{r}
@@ -64,11 +77,11 @@ response <- httr::POST(url, body = formData, encode = "form")
 
 # Create needs_qual_diagram which is the main data frame for generating
 # network diagrams
-survey_0mo <- httr::content(response)
+survey_0mo <- httr::content(response, show_col_types = FALSE)
 
 # Create a separate data frame with the alter and tie cols
 survey_0mo <- survey_0mo %>%
-  select(gender, age, arm, all_of(field_names$field_name)) %>%
+  select(hsqid, gender, age, arm, all_of(field_names$field_name)) %>%
   mutate(event_name = "0mo")
 ```
 
@@ -92,7 +105,7 @@ response <- httr::POST(url, body = formData, encode = "form")
 
 # Create needs_qual_diagram which is the main data frame for generating
 # network diagrams
-survey_12mo <- httr::content(response)
+survey_12mo <- httr::content(response, show_col_types = FALSE)
 
 # Modify the names of the survey 12m timepoint
 survey_12mo_names <- names(survey_12mo)
@@ -104,7 +117,7 @@ colnames(survey_12mo) <- new_names
 
 # Create a separate data frame with the alter and tie cols
 survey_12mo <- survey_12mo %>%
-  select(all_of(field_names$field_name)) %>%
+  select(hsqid, all_of(field_names$field_name)) %>%
   mutate(event_name = "12mo")
 ```
 
@@ -406,7 +419,6 @@ data <- data %>%
     by = "ego_id")
 ```
 
-
 ```{r}
 data <- data %>%
   left_join(
@@ -419,8 +431,12 @@ data <- data %>%
          record_id = sub("_.*", "", ego_id))
 ```
 
-
 ```{r}
 data %>%
-  write_csv(here("analyses_sas", "data", "hsq_network_measures.csv"), na = "")
+  left_join(
+    survey_0mo %>% select(hsqid, record_id) %>% mutate(record_id = as.character(record_id)),
+    by = "record_id") %>%
+  select(hsqid, arm, event_name, density:homophily_age_cat, everything(), -record_id) %>%
+  arrange(hsqid) %>%
+  write_csv(here("analyses_sas", "data", "hsq_network_data.csv"), na = "")
 ```
