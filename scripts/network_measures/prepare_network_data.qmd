@@ -314,7 +314,7 @@ ego_ids <- final_ego_network$ego$.egoID
 # })
 
 
-# ─── egoR version ─────────────────────────────────────────────
+# ─── egoR version ────────────────────────────────────────────────
 density_results <- ego_density(final_ego_network)
 ```
 
@@ -387,6 +387,14 @@ comp_ei_results_age_cat <- comp_ei(
   rename(homophily_age_cat = ei)
 ```
 
+
+```{r}
+comp_ei_results_age_cat_55 <- comp_ei(
+  final_ego_network, 
+  ego.attr = "age_cat_55", 
+  alt.attr = "altage_a") %>%
+  rename(homophily_age_cat_55 = ei)
+```
 
 ```{r}
 # Stitch together network results

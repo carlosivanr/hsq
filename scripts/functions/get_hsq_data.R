@@ -193,6 +193,7 @@ get_hsq_data <- function() {
   # all data frames into a survey to modify and obtain a consistent format
   survey_6mo$fu_smoke6 <- as.numeric(survey_6mo$fu_smoke6)
   survey_9mo$fu_smoke2 <- as.numeric(survey_9mo$fu_smoke2)
+  survey_9mo$help1 <- as.numeric(survey_9mo$help1)
   survey_12mo$help1 <- as.numeric(survey_12mo$help1)
 
   # Bind rows to keep a data frame of the full data

@@ -1010,6 +1010,46 @@ flat_lst <- bind_rows(
   data_lst[[5]]
 )
 
+# Additional processing -------------------------------------------------------
+
+# Create a single collapsed variable for Race from the select all that apply options
+flat_lst %<>% 
+  mutate(across(race___0:race____1, ~ ifelse(.x == "Checked", 1, 0))) %>%
+  rowwise() %>%
+  mutate(Multiple = sum(c_across(race___0:race____66))) %>%
+  ungroup() %>%
+  mutate(Multiple = ifelse(Multiple > 1, 1, 0)) %>%
+  mutate(across(race___0:race____66, ~ if_else(Multiple == 1, 0, .x))) %>%
+  mutate(
+    race___0 = ifelse(race___0 == 1, "Black or African American", NA),
+    race___1 = ifelse(race___1 == 1, "Asian", NA),
+    race___2 = ifelse(race___2 == 1, "White/Caucasian", NA),
+    race___3 = ifelse(race___3 == 1, "Native Hawaiian or other Pacific Islander", NA),
+    race___4 = ifelse(race___4 == 1, "American Indian/Alaska Native", NA),
+    race____66 = ifelse(race____66 == 1, "Other", NA),
+    race____1 = ifelse(race____1 == 1, "Declined", NA),
+    Multiple = ifelse(Multiple == 1, "Multiple", NA)) %>%
+  mutate(Race = coalesce(race___0, race___1, race___2, race___3, race___4, race____66, race____1, Multiple))
+
+# Score the Self Efficacy 1:5 items
+flat_lst %<>%
+    mutate(across(se1:se5, ~ case_match(
+    .x,
+    "Very Confident" ~ 3,
+    "Somewhat confident" ~ 2,
+    "Not very confident" ~ 1,
+    "Not at all confident" ~ 0,
+    .default = NA
+  ))) %>%
+  rowwise() %>%
+  mutate(se_confidence = sum(c_across(se1:se5), na.rm = TRUE) / 5) %>%
+  ungroup() 
+
+
+
+
+
+
 flat_lst %>%
   select(-record_id) %>%
   select(hsqid, arm, event_name, everything()) %>%

@@ -460,7 +460,35 @@ freq_prop(data, 'SI 10g')
 # Do you have any mental health conditions, such as an anxiety disorder, depression disorder, bipolar disorder, schizophrenia, Attention-Deficit/Hyperactivity Disorder (ADHD), Posttraumatic Stress Disorder (PTSD) or substance use disorder?
 ```{python}
 freq_prop(data, 'NJ 31')
+
+# NJ 31 used to branch UT 3 through UT 9
 ```
+
+# Anxiety Disorder:
+```{python}
+freq_prop(data[data['NJ 31'] == "Yes"], 'UT 3')
+```
+
+# Depression:
+```{python}
+freq_prop(data[data['NJ 31'] == "Yes"], 'UT 4')
+```
+
+# Schizophrenia and Schizoaffective Disorders:
+```{python}
+freq_prop(data[data['NJ 31'] == "Yes"], 'UT 5')
+```
+
+# Bipolar Disorder:
+```{python}
+freq_prop(data[data['NJ 31'] == "Yes"], 'UT 6')
+```
+
+# Other:
+```{python}
+freq_prop(data[data['NJ 31'] == "Yes"], 'UT 9')
+```
+
 
 # During the past two weeks have you experienced any emotional challenges such as excessive stress, feeling depressed or anxious?
 ```{python}
@@ -568,41 +596,18 @@ freq_prop(data, 'SI 18f')
 
 
 
-# Anxiety Disorder:
-```{python}
-freq_prop(data, 'UT 3')
-```
 
-# Depression:
-```{python}
-freq_prop(data, 'UT 4')
-```
-
-# Schizophrenia and Schizoaffective Disorders:
-```{python}
-freq_prop(data, 'UT 5')
-```
-
-# Bipolar Disorder:
-```{python}
-freq_prop(data, 'UT 6')
-```
-
-# Other:
-```{python}
-freq_prop(data, 'UT 9')
-```
 
 
 
 ```{python}
 # Save data to .csv
-data.to_csv(
-  "C:\\Users\\rodrica2\\OneDrive - The University of Colorado Denver\\Documents\\DFM\\projects\\hsq\\analyses_sas\data\\njh_data.csv", 
-  index= False)
+# data.to_csv(
+#   "C:\\Users\\rodrica2\\OneDrive - The University of Colorado Denver\\Documents\\DFM\\projects\\hsq\\analyses_sas\data\\njh_data.csv", 
+#   index= False)
 
-mapper.to_csv(
-  "C:\\Users\\rodrica2\\OneDrive - The University of Colorado Denver\\Documents\\DFM\\projects\\hsq\\analyses_sas\data\\njh_dict.csv", 
-  index= False
-)
+# mapper.to_csv(
+#   "C:\\Users\\rodrica2\\OneDrive - The University of Colorado Denver\\Documents\\DFM\\projects\\hsq\\analyses_sas\data\\njh_dict.csv", 
+#   index= False
+# )
 ```

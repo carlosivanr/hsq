@@ -1,0 +1,773 @@
+---
+title: "HSQ - Baseline Characteristics Quantitative Measures (draft)"
+date: today
+
+format: 
+  docx:
+    reference-doc: "D:\\custom-reference-doc.docx"
+    toc: true
+
+execute: 
+  echo: false
+  warning: false
+---
+
+
+```{r}
+#| eval: false
+# -----------------------------------------------------------------------------
+# Carlos Rodriguez, PhD. CU Anschutz Dept. of Family Medicine
+
+# Date: 10/23/2025
+
+# Description: This script is designed to tabulate the quantitative measures 
+# for the HSQ baseline characteristics manuscript
+
+# Inputs: Requires .csv files in the analyses_sas folder. The .csv files are
+# created from various scripts such as the primary outcomes completion report,
+# prepare_network_data.qmd, and the NJH dev_prep_data.py scripts.
+
+# Relies on custom functions in the 
+# [dfm_tb](https://github.com/carlosivanr/dfm_tb) package
+
+# Save to the following drive
+# "Z:\Shared\DFM\HSQ_Shared\Analysis\Stat Working\Baseline Paper"
+# -----------------------------------------------------------------------------
+```
+
+
+```{r}
+# Load libraries
+library(tidyverse)
+library(magrittr, include = "%<>%")
+library(gtsummary)
+library(dfmtbx)
+```
+
+
+# RedCap Participant Management Measures
+```{r}
+hsq <- read_csv("C:\\Users\\rodrica2\\OneDrive - The University of Colorado Denver\\Documents\\DFM\\projects\\hsq\\analyses_sas\\data\\hsq_data.csv", show_col_types = FALSE)
+
+# Filter to baseline only
+hsq %<>%
+  filter(event_name == "0mo")
+```
+
+
+## Demographics
+```{r}
+hsq %>% 
+  mutate(Hispanic = eth,
+         Arm = arm,
+         Gender = gender,
+         Age = age) %>%
+  select(Arm, Age, Gender, Hispanic, Race) %>%
+  tbl_summary(by = Arm,
+    statistic = list(Age ~ "{mean} ({sd})"),
+    digits = list(
+      all_categorical() ~ c(0,1), # The first value is for the n, and the second value for the %
+      all_continuous() ~ c(2,2))  # the first value is for mean, the second value is for sd
+  ) %>%
+  add_overall() %>%
+  add_p(
+    test = list(Age ~ "t.test"),
+    test.args = list(Age ~ list(var.equal = TRUE)),
+    pvalue_fun = label_style_pvalue(digits = 3)
+  )
+```
+
+{{< pagebreak >}}
+
+```{r}
+# Sum se1 through se5 as subscale from Jim Cunningham's work https://www.sciencedirect.com/science/article/pii/S2212962614000583
+```
+
+## Scored psychological measures
+- PHQ4 (psy_score)
+- PHQ4 depression subscore (dep_score)
+- PHQ4 anxiety subscore (anx_score)
+- Abstinence Related Motivational Engagement (arme_score)
+- Proactive Coping Scale (pcs_score)
+- Treatment Self Regulation Questionnaire
+  - Autonomous motivation (factor 1, tsrq_auto)
+  - Introjected regulation (factor 2, tsrq_intr)
+  - External regulation (factor 3, tsrq_extr)
+  - Amotivation (factor 4, tsrq_amot)
+- Self efficacy (se_confidence) *** needs confirmation on scoring
+- Residual attraction to smoking (cd_attraction)
+- Continuing smoker self-label (cd_smoker)
+- Vulnerable to smoking relapse (cd_vulnerable)
+
+```{r}
+# Create two vectors of the continuous and binary variables from the 
+# psychological instruments
+cont_vars <- c("psy_score", "dep_score", "anx_score", "arme_score", 
+               "pcs_score", "tsrq_auto", "tsrq_intr", "tsrq_extr", 
+               "tsrq_amot", "se_confidence")
+
+bin_vars <- c("cd_attraction", "cd_smoker", "cd_vulnerable")
+```
+
+```{r}
+psy_tab <- hsq %>%
+  select(arm, all_of(cont_vars), all_of(bin_vars)) %>%
+  tbl_summary(
+    by = arm,
+    type = list(all_of(cont_vars)  ~ "continuous"),
+    statistic = list(all_of(cont_vars) ~ "{mean} ({sd}), [{min}; {median}; {max}]"),
+    digits = list(
+      all_categorical() ~ c(0,1), # The first value is for the n, and the second value for the %
+      all_continuous() ~ c(2,2)),  # the first value is for mean, the second value is for sd
+    missing = "ifany",
+    label = list(
+      psy_score = "PHQ4 (PHQ2 + GAD2)",
+      dep_score = "PHQ2 (depresion)",
+      anx_score = "GAD2 (anxiety)",
+      arme_score = "Abstinence Related Motivational Engagement",
+      pcs_score = "Proactive Coping Scale",
+      tsrq_auto = "TSRQ Autonomous Motivation",
+      tsrq_extr = "TSRQ External Regulation",
+      tsrq_intr = "TSRQ Introjected Regulation",
+      tsrq_amot = "TSRQ Amotivation",
+      cd_attraction = "CD Residual attraction",
+      cd_smoker = "CD Continuing smoker self-label",
+      cd_vulnerable = "CD Vulnerable to smoking relapse",
+      se_confidence = "Self Efficacy (CAM RTTI)")) %>%
+  add_overall() %>%
+  add_p(pvalue_fun = label_style_pvalue(digits = 3))
+  # add_p(
+  #   test = list(all_continuous() ~ "t.test"),
+  #   test.args = all_continuous() ~ list(var.equal = TRUE))
+```
+
+```{r}
+psy_tab
+```
+
+{{< pagebreak >}}
+
+
+## SE Questions
+```{r}
+se_qs <- c("se6", "se7", "se8", "se9", "se10", "se11", "se12")
+```
+
+
+```{r}
+# Gave error on se8 for some reason
+hsq %>%
+  select(arm, all_of(se_qs)) %>%
+  mutate(across(all_of(se_qs), ~ factor(.x, levels = c(
+    "Very sure I am able to", 
+    "Usually sure I am able to", 
+    "Somewhat sure I am able to", 
+    "Neutral",  
+    "Somewhat not sure I am able to",
+    "Usually not sure I am able to",
+    "Not at all sure I am able to",
+    "Prefer not to answer" 
+    )))) %>%
+  tbl_summary(
+    by = arm,
+    digits = all_categorical() ~ c(0,1),
+    label = list(
+      se6 = "Are you able to keep thinking of the pros of quitting when you feel like smoking?",
+      se7 = "Are you able to coach yourself 'I want to quit' or 'I won't give up'?",
+      se8 = "Are you able to keep thinking of the cons of smoking when you feel like smoking?",
+      se9 = "Are you able to ask the people around you to support your quit attempt?",
+      se10 = "Are you able to tell smokers you have quit smoking when you are at a party?",
+      se11 = "Are you able to anticipate situations in which it might be difficult to refrain from smoking?",
+      se12 = "Are you able to divert yourself when you feel like smoking?"
+    )) %>%
+  add_p(test.args = all_categorical() ~ list(workspace = 2e7),
+        pvalue_fun = label_style_pvalue(digits = 3))           
+
+```
+
+```{r}
+#| eval: false
+hsq %>% 
+  filter(arm == "Control") %>%
+  select(tsrq_extr) %>%
+  ggplot(., aes(x = tsrq_extr)) +
+  geom_histogram()
+```
+
+```{r}
+#| eval: false
+hsq %>% 
+  filter(arm != "Control") %>%
+  select(tsrq_extr) %>%
+  ggplot(., aes(y = tsrq_extr)) +
+  geom_boxplot()
+```
+
+```{r}
+#| eval: false
+hsq %>% 
+  select(tsrq_extr, arm) %>%
+  ggplot(., aes(y = tsrq_extr, x = arm)) +
+  geom_boxplot()
+```
+
+## Social Network Metrics
+```{r}
+pna <- read_csv("C:\\Users\\rodrica2\\OneDrive - The University of Colorado Denver\\Documents\\DFM\\projects\\hsq\\analyses_sas\\data\\hsq_network_data.csv", show_col_types = FALSE) %>%
+  filter(event_name == "0mo")
+```
+
+```{r}
+pna %>%
+  select(arm, density, n_components, homophily_gender, homophily_age_cat, btw_centr, deg_centr) %>% 
+  tbl_summary(
+    by = arm,
+    stat = list(
+      density ~ "{mean} ({sd}), [{min}; {median}; {max}]",
+      homophily_gender ~ "{mean} ({sd}), [{min}; {median}; {max}]",
+      homophily_age_cat ~ "{mean} ({sd}), [{min}; {median}; {max}]",
+      btw_centr ~ "{mean} ({sd}), [{min}; {median}; {max}]",
+      deg_centr ~ "{mean} ({sd}), [{min}; {median}; {max}]",
+      n_components ~ "{mean} ({sd}), [{min}; {median}; {max}]"
+    ),
+    label = list(
+      density = "Density",
+      n_components = "Number of components",
+      btw_centr = "Betweenness centralization",
+      deg_centr = "Degree centralization",
+      homophily_gender = "homophily (gender)",
+      homophily_age_cat = "homophily (age)"
+    )
+  ) %>%
+  add_overall() %>%
+  add_p(
+    test = everything() ~ "wilcox.test",
+    pvalue_fun = label_style_pvalue(digits = 3))
+```
+
+# NJH Data
+```{r}
+njh <- read_csv("C:\\Users\\rodrica2\\OneDrive - The University of Colorado Denver\\Documents\\DFM\\projects\\hsq\\analyses_sas\\data\\njh_data.csv", show_col_types = FALSE)
+```
+
+```{r}
+# These variables were captured in the RedCap too
+# Hispanic = eth,
+# Arm = arm,
+# Gender = gender,
+# Age = age
+```
+
+## State quitlines
+```{r}
+# Merge in arm (randomization group) into the njh data
+njh <- left_join(
+  njh,
+  (hsq %>%
+  filter(hsqid %in% njh$Hsqid) %>%
+  select(hsqid, arm)),
+  by = c("Hsqid" = "hsqid"))
+```
+
+```{r}
+njh %>%
+  select(`State Client`, arm) %>%
+  tbl_summary(
+    by = arm,
+    digits = all_categorical() ~ c(0,1),
+    ) %>%
+  add_p(
+    pvalue_fun = label_style_pvalue(digits = 3)
+  )
+```
+
+## Demographic Info from NJH
+```{r}
+# Clean the InsuranceCompany variable
+njh %<>%
+  mutate(contains_medicaid =  ifelse(str_detect(InsuranceCompany, regex("medicaid", ignore_case = TRUE)), 1, 0)) %>%
+  mutate(InsuranceCompany = ifelse(contains_medicaid == 1, "Medicaid", InsuranceCompany)) %>%
+  mutate(contains_medicare =  ifelse(str_detect(InsuranceCompany, regex("medicare", ignore_case = TRUE)), 1, 0)) %>%
+  mutate(InsuranceCompany = ifelse(contains_medicare == 1, "Medicare", InsuranceCompany)) %>%
+  mutate(InsuranceCompany = ifelse(is.na(InsuranceCompany), "Unknown", InsuranceCompany)) %>%
+  mutate(InsuranceCompany = ifelse(!InsuranceCompany %in% c("Medicaid", "Medicare", "Unknown"), "Commercial/Other", InsuranceCompany))
+```
+
+```{r}
+# Collapse SI 16 which asks about education level
+njh %<>%
+  mutate(`SI 16` = ifelse(str_detect(`SI 16`, "Some college"), "Some college or university", `SI 16`)) %>%
+  mutate(`SI 16` = ifelse(str_detect(`SI 16`, "College or university"), "College or university degree", `SI 16`)) %>%
+  mutate(`SI 16` = ifelse(`SI 16` == "Grade 9 to 11, no degree", "Some high school", `SI 16`)) %>%
+  mutate(`SI 16` = factor(`SI 16`, levels = c(
+    "Less than grade 9",
+    "Some high school",
+    "High school degree",
+    "GED",
+    "Some college or university", 
+    "College or university degree")))
+```
+
+```{r}
+njh %>%
+  select(
+    InsuranceCompany, 
+    `Special Program`, 
+    `Coach Call Count`, 
+    `Received NRT`,
+    `Received Bupropion`,
+    `Received Varenicline`,
+    `Age Started Tobacco`,
+    `OI 24`,
+    `SI 16`,
+    `NJ 31`,
+    arm) %>%
+  tbl_summary(
+    by = arm,
+    type = list(`Coach Call Count` ~ "continuous"),
+    statistic = list(all_continuous() ~ "{mean} ({sd}), [{min}; {median}; {max}]"),
+    digits = list(
+      all_categorical() ~ c(0,1), # The first value is for the n, and the second value for the %
+      all_continuous() ~ c(2,2)),  # the first value is for mean, the second value is for sd
+    label = list(
+      `OI 24` ~ "Gay, lesbian, or bisexual",
+      `SI 16` ~ "Education",
+      `NJ 31` ~ "History of behavioral health conditions")
+  ) %>%
+  add_p(
+    test = list(all_continuous() ~ "t.test"),
+    test.args = all_continuous() ~ list(var.equal = TRUE),
+    pvalue_fun = label_style_pvalue(digits = 3))
+```
+
+## MDS Questions
+### What types of tobacco have you used in the past 30 days?
+```{r}
+njh %>% 
+  select(arm, starts_with("SI 5")) %>%
+  select(-`SI 5F`) %>%
+  mutate(across(starts_with("SI 5"), ~ factor(.x, levels = c("Yes", "No", "Don't Know")))) %>%
+  tbl_summary(by = arm,
+    label = list(
+      `SI 5a` ~ "Cigarettes",
+      `SI 5b` ~ "Cigars, cigarillos, or little cigars",
+      `SI 5c` ~ "Pipe",
+      `SI 5d` ~ "Chewing tobacco, snuff, or dip",
+      `SI 5e` ~ "Other tobacco products"),
+    digits = list(all_categorical() ~ c(0,1))) %>%
+  add_p(pvalue_fun = label_style_pvalue(digits = 3))
+```
+
+#### For those that answered "Yes" to "Other tobacco products"
+```{r}
+other_tbco <- c(
+"OI 5e-1a",
+"OI 5e-1b",
+"OI 5e-1c",
+"OI 5e-1d",
+"OI 5e-1e",
+"OI 5e-1f")
+
+njh %>%
+  filter(`SI 5e` == "Yes") %>%
+  select(arm, all_of(other_tbco)) %>%
+  mutate(across(all_of(other_tbco), ~ factor(.x, levels = c("Yes", "No")))) %>%
+  tbl_summary(by = arm,
+    label = list(
+      "OI 5e-1a" ~ "Bidis",
+      "OI 5e-1b" ~ "Kreteks or clove cigarettes",
+      "OI 5e-1c" ~ "Tobacco pouches or snus",
+      "OI 5e-1d" ~ "Tobacco orbs",
+      "OI 5e-1e" ~ "Tobacco strips",
+      "OI 5e-1f" ~ "Water pipes or hookahs"),
+    digits = list(all_categorical() ~ c(0,1)))
+
+```
+
+### Have you used an e-cigarette or other electronic “vaping” product in the past 30 days?
+```{r}
+njh %>%
+  select(arm, `SI 5F`) %>%
+  mutate(across(starts_with("SI 5"), ~ factor(.x, levels = c("Yes", "No", "Don't Know", "Refused", "Not asked")))) %>%
+  tbl_summary(
+    arm,
+    digits = list(
+    all_categorical() ~ c(0,1))) %>%
+  add_p(
+    pvalue_fun = label_style_pvalue(digits = 3)
+  )
+```
+
+### Do you smoke cigarettes every day, some days, or not at all?
+```{r}
+# * Unclear if "Unknowns" reflect "Refused" in the NJH data
+njh %>%
+  filter(`SI 5a` == "Yes") %>%
+  select(arm, `SI 6a`) %>%
+  mutate(`SI 6a` = ifelse(`SI 6a` == "Not at all", "Not smoking at all", `SI 6a`)) %>%
+  mutate(`SI 6a` = factor(`SI 6a`, levels = c("Every day", "Some days", "Not at all", "Don't Know", "Refused"))) %>%
+  tbl_summary(
+    by = arm,
+    digits = list(all_categorical() ~ c(0,1))) %>%
+  add_p(
+    pvalue_fun = label_style_pvalue(digits = 3)
+  )
+```
+
+### How many cigarettes do you smoke per day on the days that you smoke (cigarettes per day)?
+* Intake specialist instructions state to leave blank if caller refuses.
+```{r}
+njh %>%
+  filter(`SI 5a` == "Yes") %>%
+  select(arm, "Cigarettes Per Day (SI 7a)") %>%
+  tbl_summary(arm,
+      statistic = list(all_continuous() ~ "{mean} ({sd}), [{min}; {median}; {max}]"),
+      digits = list(all_continuous() ~ c(2,2))) %>%
+  add_p(
+    test = list(all_continuous() ~ "t.test"),
+    test.args = all_continuous() ~ list(var.equal = TRUE),
+    pvalue_fun = label_style_pvalue(digits = 3)
+)
+```
+
+### Are the cigarettes you usually smoke menthol cigarettes?
+```{r}
+njh %>%
+  filter(`SI 5a` == "Yes") %>%
+  select(arm, `OI 7a-1`) %>%
+  mutate(`OI 7a-1` = factor(`OI 7a-1`, levels = c(
+    "Yes, I usually smoke menthol cigarettes",
+    "No, I usually smoke other types of cigarettes",
+    "Don't know",
+    "Refused",
+    "Not asked"))) %>%
+  tbl_summary(
+    by = arm,
+    digits = list(all_categorical() ~ c(0,1))) %>%
+  add_p(
+    pvalue_fun = label_style_pvalue(digits = 3)
+  )
+```
+
+<!-- NEED TO CALCULATE LAST DATE TO CIGARETTE -->
+
+
+<!-- CIGARS -->
+### Do you smoke cigars, cigarillos, or little cigars every day, some days, or not at all?
+```{r}
+njh %>%
+  filter(`SI 5b` == "Yes") %>%
+  select(arm, `SI 6b`) %>%
+  mutate(`SI 6b` = factor(`SI 6b`, levels = c(
+    "Every day",
+    "Some days",
+    "Not at all",
+    "Don't know",
+    "Refused"))) %>%
+  tbl_summary(
+    by = arm,
+    digits = list(all_categorical() ~ c(0,1))) %>%
+  add_p(pvalue_fun = label_style_pvalue(digits = 3))
+```
+
+
+### How many cigars, cigarillos, or little cigars do you smoke per week on the weeks that you smoke? 
+```{r}
+njh %>%
+  filter(`SI 5b` == "Yes") %>%
+  select(arm, "Cigars Per Week (SI 7b)") %>%
+  tbl_summary(arm,
+      digits = list(all_categorical() ~ c(0,1)))
+```
+
+<!-- NEED TO CALCULATE LAST DATE TO CIGAR -->
+
+<!-- PIPE -->
+<!-- ### Do you smoke a pipe everyday, some days, or not at all? (SI 6c) -->
+<!-- * Does not appear in data -->
+```{r}
+#| eval: false
+
+# Does not appear in data
+njh %>%
+  filter(`SI 5c` == "Yes") %>%
+  select(arm, `SI 6c`) %>%
+  mutate(`SI 6c` = factor(`SI 6c`, levels = c(
+    "Every day",
+    "Some days",
+    "Not at all",
+    "Don't know",
+    "Refused"))) %>%
+  tbl_summary(by = arm) %>%
+  add_p(pvalue_fun = label_style_pvalue(digits = 3))
+```
+
+<!-- ### How many pipes do you smoke per week on the weeks that you smoke? (SI 7c) -->
+```{r}
+#| eval: false
+njh %>%
+  filter(`SI 5c` == "Yes") %>%
+  select(arm, "Pipes Per Week (SI 7c)") %>%
+  tbl_summary(arm)
+```
+
+<!-- ### How many days did you smoke a pipe in the last 30 days? -->
+<!-- * Does not appear in data -->
+```{r}
+
+```
+
+<!-- ### When was the last time you smoked a pipe, even a puff?  "Last Pipe Date (SI 8c)" -->
+```{r}
+
+```
+
+<!-- CHEWING TOBACCO -->
+### Do you use chewing tobacco, snuff, or dip every day, some days, or not at all?
+```{r}
+njh %>%
+  filter(`SI 5d` == "Yes") %>%
+  select(arm, `SI 6d`) %>%
+  mutate(`SI 6d` = factor(`SI 6d`, levels = c(
+    "Every day",
+    "Some days",
+    "Not at all",
+    "Don't know",
+    "Refused"))) %>%
+  tbl_summary(
+    by = arm,
+    digits = list(all_categorical() ~ c(0,1))) %>%
+  add_p(pvalue_fun = label_style_pvalue(digits = 3))
+```
+
+### How many pouches or tins do you use per week on the weeks that you use tobacco?
+<!-- MAY HAVE TWO COLUMNS. Somewhere in the pipeline a separate column SI 7d was added -->
+```{r}
+njh %>%
+  filter(`SI 5d` == "Yes") %>%
+  select(arm, "Pouch Per Week (SI 7d)") %>%
+  tbl_summary(
+    arm,
+    digits = list(all_categorical() ~ c(0,1)))
+```
+
+
+<!-- ### How many days did you chew in the last 30 days? -->
+<!-- * Does not appear in data -->
+<!-- SLT means smokeless tobacco -->
+<!-- LAST DATE OF CHEW/ SLT USE --> 
+```{r}
+
+```
+
+### Do you currently use other types of tobacco every day, some days, or not at all? (SI 6e)
+```{r}
+njh %>%
+  filter(`SI 5e` == "Yes") %>%
+  select(arm, `SI 6e`) %>%
+  mutate(`SI 6e` = factor(`SI 6e`, levels = c(
+    "Every day",
+    "Some days",
+    "Not at all",
+    "Don't know",
+    "Refused"))) %>%
+  tbl_summary(by = arm,
+    digits = list(all_categorical() ~ c(0,1)))
+```
+
+### How much other tobacco do you use per week, on the weeks that you use tobacco?
+```{r}
+njh %>% 
+  filter(`SI 5e` == "Yes") %>%
+  select(arm, "Other Tobacco Per Week (SI 7e)") %>%
+  tbl_summary(
+    by = arm,
+    type = everything() ~ "continuous",
+    statistic = all_continuous() ~ "{mean} ({sd}), [{min}; {median}; {max}]",   
+    digits = all_continuous() ~ c(2,2))
+```
+
+
+<!-- ### How many days did you use other tobacco in the last 30 days?  (OI 6e-1) -->
+```{r}
+# KS intake asks this only for American Indian, but not sure what the branch is
+# Also not in data
+# njh %>% 
+#   filter(`SI 5e` == "Yes") %>%
+#   select(arm, "Other Tobacco Per Week (SI 7e)") %>%
+#   tbl_summary(by = arm)
+```
+
+<!-- ### When was the last time you used other tobacco, even a puff or pinch? -->
+<!-- Date needs to be calculated, lots of missing values-->
+```{r}
+# njh %>% 
+#   filter(`SI 5e` == "Yes") %>%
+#   select(arm, "days_last_other_tbco") %>%
+#   tbl_summary(by = arm)
+```
+
+### How soon after you wake, do you smoke your first cigarette?
+```{r}
+# Data prep to order factors for these columns that are specific to each tbco type.
+how_soon_cols <- njh %>%
+  select(
+    "SI 9",
+    "OI 9-3",
+    # "OI 9-2", # References Pipe but not in data
+    "OI 9-1",
+    "OI 9-4",
+    "OI 9-5") %>%
+  names()
+
+njh %<>%
+  mutate(across(all_of(how_soon_cols), ~ factor(.x, levels = c(
+    "Within five minutes",
+    "6 to 30 minutes",
+    "31 to 60 minutes",
+    "More than 60 minutes",
+    "Don't know",
+    "Refused"))))
+```
+
+
+```{r}
+njh %>%
+  # The word file filters, but not sure if these filter in the .xlsx files
+  # filter(`SI 6a` %in% c("Every day", "Some days")) %>%
+  select(arm, "SI 9") %>%
+  tbl_summary(
+    by = arm,
+    digits = list(
+      all_categorical() ~ c(0,1))) %>%
+    add_p(pvalue_fun = label_style_pvalue(digits = 3))
+```
+
+### How soon after you wake, do you first smoke a cigar, cigarillo, or little cigar?
+```{r}
+njh %>%
+  select(arm, "OI 9-1") %>%
+  tbl_summary(
+    by = arm,
+    digits = list(
+      all_categorical() ~ c(0,1))) %>%
+    add_p(pvalue_fun = label_style_pvalue(digits = 3))
+```
+
+### How soon after you wake, do you first smoke a pipe?
+* Does not appear in data
+```{r}
+#| eval: false
+njh %>%
+  select(arm, "OI 9-2") %>%
+  tbl_summary(
+    by = arm) %>%
+    add_p(pvalue_fun = label_style_pvalue(digits = 3))
+```
+
+### How soon after you wake, do you first use spit tobacco, snuff or chew?
+```{r}
+njh %>%
+  select(arm, "OI 9-3") %>%
+  tbl_summary(
+    by = arm,
+    digits = all_categorical() ~ c(0,1)
+      ) %>%
+    add_p(pvalue_fun = label_style_pvalue(digits = 3))
+```
+
+### How soon after you wake, do you first use other commercial tobacco?
+```{r}
+njh %>%
+  select(arm, "OI 9-4") %>%
+  tbl_summary(
+    by = arm,
+    digits = all_categorical() ~ c(0,1)
+    ) %>%
+    add_p(pvalue_fun = label_style_pvalue(digits = 3))
+```
+
+### How soon after you wake, do you use e-cigarette or other electronic vaping products?
+```{r}
+# AZ only asks this of youth, currently no AZ data 10/31/2025
+njh %>%
+  # filter(`State Client` == 'AZ') %>%
+  select(arm, "OI 9-5") %>%
+  tbl_summary(
+    by = arm,
+    digits = list(
+      all_categorical() ~ c(0,1))) %>%
+    add_p(pvalue_fun = label_style_pvalue(digits = 3))
+```
+
+
+### Do you intend to quit using cigarettes within the next 30 days?
+<!-- Not sure if these branch or not to only those that select Yes to using a specifiy type of tbco. -->
+```{r}
+njh %<>%
+  # select(starts_with("SI 10")) %>%
+  mutate(across(starts_with("SI 10"), ~ factor(.x, levels = c(
+    "Yes", "No", "Don't know", "Refused"))))
+```
+
+```{r}
+njh %>%
+  filter(`SI 5a` == "Yes") %>%
+  select(arm, `SI 10a`) %>%
+  tbl_summary(by = arm,
+    digits = list(all_categorical() ~ c(0,1))) %>%
+  add_p(pvalue_fun = label_style_pvalue(digits = 3))
+```
+
+### Do you intend to quit smoking cigars, cigarillos, or little cigars in the next 30 days?
+```{r}
+njh %>%
+  filter(`SI 5b` == "Yes") %>%
+  select(arm, `SI 10b`) %>%
+  tbl_summary(by = arm,
+  digits = list(
+      all_categorical() ~ c(0,1))) #%>%
+  #   add_p(pvalue_fun = label_style_pvalue(digits = 3))
+```
+
+### Do you intend to quit smoking a pipe with commercial tobacco in the next 30 days?
+* Does not appear in data
+```{r}
+# njh %>%
+#   filter(`SI 5c` == "Yes") %>%
+#   select(arm, `SI 10c`) %>%
+#   tbl_summary(by = arm) %>%
+#     add_p(pvalue_fun = label_style_pvalue(digits = 3))
+```
+
+### Do you intend to quit using commercial chewing tobacco, snuff, or dip in the next 30 days?
+```{r}
+njh %>%
+  filter(`SI 5d` == "Yes") %>%
+  select(arm, `SI 10d`) %>%
+  tbl_summary(by = arm,
+    digits = list(all_categorical() ~ c(0,1)))
+  # add_p(pvalue_fun = label_style_pvalue(digits = 3))
+```
+
+### Do you intend to quit using commercial [name of other tobacco product] in the next 30 days?
+```{r}
+njh %>%
+  filter(`SI 5e` == "Yes") %>%
+  select(arm, `SI 10e`) %>%
+  tbl_summary(by = arm,
+    digits = list(all_categorical() ~ c(0,1))) #%>%
+  # add_p(pvalue_fun = label_style_pvalue(digits = 3))
+```
+
+
+### Do you intend to quit using e-cigarettes/e-vaping products in the next 30 days?
+```{r}
+# Not sure if this column branches from SI 5F
+njh %>%
+  filter(`SI 5F` == "Yes") %>%
+  select(arm, `SI 10g`) %>%
+  tbl_summary(by = arm,
+    digits = list(all_categorical() ~ c(0,1))) %>%
+  add_p(pvalue_fun = label_style_pvalue(digits = 3))
+```

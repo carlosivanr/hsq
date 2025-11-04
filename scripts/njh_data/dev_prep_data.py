@@ -29,7 +29,7 @@ import pandas as pd
 import numpy as np
 import os
 
-# Read in the data extract ---------------------------------------------------
+# Read in the NJH data --------------------------------------------------------
 proj_root = 'C:\\Users\\rodrica2\\OneDrive - The University of Colorado Denver\\Documents\\DFM\\projects\\hsq'
 
 sub_dir = '\\scripts\\njh_data\\codebooks'
@@ -40,6 +40,51 @@ file_path = proj_root + data_dir
 
 data = pd.read_excel(file_path, header = 1)
 
+# Prepare data ----------------------------------------------------------------
+# REPLACE DOUBLE SPACES WITH ONE SPACE IN THE COLUMN NAMES like SI 7d and SI 8b
+col_names = data.columns.tolist()
+
+# Replace double spaces with single space in column names
+col_names = [col.replace('  ', ' ') for col in col_names]
+
+# Assign modified col_names as the column names
+data.columns = col_names
+
+# CALCULATE DAYS SINCE LAST X CIGARETTE, CIGAR, ETC.
+# Create IntakeDate by filling NAs from WebIntke to PhoneIntake since 
+# PhoneIntake is the more complete column
+data['IntakeDate'] = data['PhoneIntakeDate'].fillna(data['WebIntakeDate'])
+
+# Convert to datetime and format
+data['IntakeDate'] = pd.to_datetime(data['IntakeDate'])
+
+# 1. Last date cigarette
+data['Last Cigarette Date (SI 8a)'] = pd.to_datetime(data['Last Cigarette Date (SI 8a)'])
+data['days_last_cigarette'] = (data['IntakeDate'] - data['Last Cigarette Date (SI 8a)']).dt.days
+
+# 2. Last date cigar
+data['Last Cigar Date (SI 8b)'] = pd.to_datetime(data['Last Cigar Date (SI 8b)'])
+data['days_last_cigar'] = (data['IntakeDate'] - data['Last Cigar Date (SI 8b)']).dt.days
+
+# 3. Last date pipe
+data['Last Pipe Date (SI 8c)'] = pd.to_datetime(data['Last Pipe Date (SI 8c)'])
+data['days_last_pipe'] = (data['IntakeDate'] - data['Last Pipe Date (SI 8c)']).dt.days
+
+
+# 4. Last date chew
+data['Last SLT Date (SI 8d)'] = pd.to_datetime(data['Last SLT Date (SI 8d)'])
+data['days_last_SLT'] = (data['IntakeDate'] - data['Last SLT Date (SI 8d)']).dt.days
+
+
+# 5. Last date other tobacco
+data['Last Other Tobacco Date (SI 8e)'] = pd.to_datetime(data['Last Other Tobacco Date (SI 8e)'])
+data['days_last_other_tbco'] = (data['IntakeDate'] - data['Last Other Tobacco Date (SI 8e)']).dt.days
+
+
+# MERGE OHIO DATA -------------------------------------------------------------
+# * May need to add Ohio data here and not in the njh_data_eda.qmd file. Will 
+# depend on if OH is included in newest data delivery or not.
+
 
 # Get question ids ------------------------------------------------------------
 # Capture the question ids of NJ 31 through UT 9 and turn them into a dataframe
@@ -48,7 +93,7 @@ data = pd.read_excel(file_path, header = 1)
 # codebooks, where there are two codebooks (intake and eligibility) for every 
 # state.
 question_id_map = pd.DataFrame({'MDS Question Id': data.loc[:, 'NJ 31':'UT 9'].columns,
-                          'Question Text': pd.NA})
+                                'Question Text': pd.NA})
 
 
 # Import the code book for the data extract -----------------------------------
@@ -118,10 +163,11 @@ for x in files['file']:
 # question_id_map data frame which are derived from the data extract. So the 
 # state question map should be filtered to the rows where MDS Quesiont Id is 
 # in question_id_map
-state_question_map = (state_question_map[state_question_map["MDS Question Id"]
-  .isin(question_id_map["MDS Question Id"])])
+state_question_map = (
+  state_question_map[state_question_map["MDS Question Id"].isin(question_id_map["MDS Question Id"])]
+  )
 
-# Why do some counts have over 100
+# Why do some counts have over 100?
 (state_question_map
   .groupby("state")
   .size())
@@ -151,7 +197,6 @@ state_question_map["Attribute"] = np.where(
 
 # * Massachusetts MA asks two additional questions out of the current list of states
 # as of 07/28/2025
-
 state_question_map['asked'] = 1  # Create a column of 1s
 
 state_question_map = state_question_map.drop_duplicates()
@@ -164,7 +209,7 @@ result = state_question_map.pivot_table(index=['state', 'MDS Question Id'],
                         fill_value=0).reset_index()
 
 # The questions that MA asks that are additional ar OI 7b and OI 7f, which asks
-# if cigars or vaping in the parent question are  menthol
+# if cigars or vaping in the parent question are menthol
 
 # Save the state_question_map to .csv
 output_dir = '\\scripts\\njh_data\\'
@@ -194,10 +239,19 @@ mapper = dict(zip(question_id_map["MDS Question Id"], question_id_map["Question 
 # column names
 data_labeled = data.rename(columns = mapper)
 
+
+
+
+
 # Output data to a .csv -------------------------------------------------------
 # Output the unlabeled data
 data_out = proj_root + output_dir + 'njh_data.csv'
 data.to_csv(data_out, index=False)
+
+# Output the unlabeled data to the analyses folder
+data.to_csv(
+"C:\\Users\\rodrica2\OneDrive - The University of Colorado Denver\\Documents\\DFM\\projects\\hsq\\analyses_sas\\data",
+index = False)
 
 # Output the labels for the data
 mapper = pd.DataFrame.from_dict(mapper, orient = 'index')
