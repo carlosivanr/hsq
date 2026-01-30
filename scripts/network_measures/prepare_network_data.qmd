@@ -121,57 +121,27 @@ survey_12mo <- survey_12mo %>%
   mutate(event_name = "12mo")
 ```
 
+
 ```{r}
-# # Set formData, contains token and other parameters
-# # Set the report_id to pull from
-# formData <- list("token"=.token,
-#                  content='report',
-#                  format='csv',
-#                  report_id='153246',
-#                  csvDelimiter='',
-#                  rawOrLabel='label',
-#                  rawOrLabelHeaders='raw',
-#                  exportCheckboxLabel='false',
-#                  returnFormat='json'
-# )
+# Count the number of alters entered at the baseline survey timepoint
+n_alters_0mo <- survey_0mo %>%
+  select(alter1:alter25) %>%
+  rowwise() %>%
+  mutate(n_missing = sum(is.na(c_across(everything())))) %>%
+  ungroup() %>%
+  mutate(n_alters = 25 - n_missing) %>%
+  select(n_alters)
 
-# # Create response object using formData
-# response <- httr::POST(url, body = formData, encode = "form")
-
-# # Create needs_qual_diagram which is the main data frame for generating
-# # network diagrams
-# all_data <- httr::content(response)
+survey_0mo <- bind_cols(survey_0mo, n_alters_0mo)
 ```
 
-```{r}
-# Recode the ego and alter gender identity values to be congruent with one another since the
-# options for the ego were different than the options for the alters.
-# all_data <- all_data %>%
-#   mutate(
-#     gender = case_match(
-#       gender,
-#       ",Man (including transman and transmasculine)" ~  "Man (including transman and transmasculine)",
-#       "Prefer to self-describe (non-binary, gender queer) please specify below" ~ "Other", 
-#       .default = gender)
-#   ) %>% 
-#   mutate(across(starts_with("altgender_"), 
-#     ~ case_match(
-#       .x,
-#       "Different Gender Identity (including non-binary and gender queer)" ~ "Other",
-#       .default = .x))
-#   ) %>%
-#   mutate(age_cat = ifelse(age >= 18 & age <= 64, "18 - 64", "65 or older")) %>%
-#   mutate(arm = ifelse(arm == "2 - HSQ training - end of participation", "Control", "Intervention"))
-```
 
 ```{r}
-# Create a separate data frame with the alter and tie cols
-# data <- all_data %>%
-#   select(gender, age_cat, all_of(field_names$field_name))
-```
-
-```{r}
-data <- bind_rows(survey_0mo, survey_12mo) %>%
+# Clean data, create a categorical age variable for homophily measures
+data <- bind_rows(
+    survey_0mo,
+    # survey_12mo # *** WHEN 12mo DATA IS AVAIALABLE, UNCOMMENT ***
+    ) %>% 
   group_by(record_id) %>%
   fill(gender, age, arm) %>%
   ungroup() %>%
@@ -194,32 +164,23 @@ data <- bind_rows(survey_0mo, survey_12mo) %>%
   select(gender, arm, age_cat, ego_id, all_of(field_names$field_name))
 ```
 
-```{r, warning = FALSE, message = FALSE}
-# Reworked code from Camille's approach
-# ─── Parameters ───────────────────────────────────────────────
 
-# these cols will represent alter names, 25 total in a data frame
-# that will be culled
-namerange <- 2:26       
+```{r}
+#| eval: false
 
-# these cols will represent the ties or links, up to 300 because
-# 25 * (25 -1) / 2.
-tierange  <- 502:801    
+# This section is to investigate the data input for those that submitted 0 or 
+# 13 alters in the baseline survey. Some participants did not input any names, 
+# but filled out the indivdiual alter surveys that are used to compute their
+# network metrics
+temp <- data %>%
+  filter(n_alters_0mo == 13)
 
-# ─── Clean Input Data ─────────────────────────────────────────
-# Create a data frame where only the relevant columns and rows 
-# are retained. The filter verb should drop any rows where any
-# of the alger names or alter-alter ties are missing, and should
-# negate the need for a mask downstream.
-# n.b. add additional columns after the namerange and tierange
-# otherwise the numerical indexing is disrupted.
-filtered_ego_data <- data %>%
+temp_alter_names_long <- temp %>%
+  select(alter1:alter25) %>%
+  pivot_longer(cols = everything(), names_to = "alter", values_to = "name")
+
+temp_filtered_ego_data <- temp %>%
   select(ego_id, alter1:m24_25, gender, age_cat) %>%
-  rowwise() %>%
-  filter(
-    all(!is.na(across(all_of(namerange)))) &
-    all(!is.na(across(all_of(tierange))))
-  ) %>%
   mutate(across(
     .cols = c(starts_with("alttobacco_a"), starts_with("altsmoke_a")),
     .fns  = ~ case_when(
@@ -230,13 +191,77 @@ filtered_ego_data <- data %>%
   )) %>%
   ungroup()
 
-# ─── Convert to egor Object ───────────────────────────────────
+
+temp_ego_network_long <- invisible(onefile_to_egor(
+  egos            = temp_filtered_ego_data,
+  ID.vars         = list(ego = "ego_id"),
+  attr.start.col  = "altgender_a1",
+  attr.end.col    = "altquitnow_a25",
+  max.alters      = 25,
+  aa.first.var    = "m1_2"
+))
+```
+
+```{r, warning = FALSE, message = FALSE}
+# Reworked code from Camille's approach
+# --- Parameters -----------------------------------------------
+
+# these cols will represent alter names, 25 total in a data frame
+# that will be culled
+namerange <- 2:26
+
+# these cols will represent the ties or links, up to 300 because
+# 25 * (25 - 1) / 2 = 300.
+tierange  <- 502:801
+
+# --- Clean Input Data -----------------------------------------
+# Create a data frame where only the relevant columns and rows 
+# are retained. The filter verb should drop any rows where any
+# of the alter names or alter-alter ties are missing, and should
+# negate the need for a mask downstream.
+# n.b. add additional columns after the namerange and tierange
+# otherwise the numerical indexing is disrupted.
+tictoc::tic()
+filtered_ego_data <- data %>%
+  select(ego_id, alter1:m24_25, gender, age_cat) %>%
+  filter(
+    if_all(all_of(namerange), ~ !is.na(.x)) &
+    if_all(all_of(tierange), ~ !is.na(.x))) %>%
+  mutate(across(
+    .cols = c(starts_with("alttobacco_a"), starts_with("altsmoke_a")),
+    .fns  = ~ case_when(
+      .x == "Checked"   ~ "Yes",
+      .x == "Unchecked" ~ "No",
+      TRUE              ~ NA_character_
+    )
+  ))
+tictoc::toc()
+
+# In addition to the data frame above, create a data frame where
+# records with missing data are retained.
+# unfiltered_ego_data <- data %>%
+  # select(ego_id, alter1:m24_25, gender, age_cat) %>%
+  # rowwise() %>%
+  # mutate(across(
+  #   .cols = c(starts_with("alttobacco_a"), starts_with("altsmoke_a")),
+  #   .fns  = ~ case_when(
+  #     .x == "Checked"   ~ "Yes",
+  #     .x == "Unchecked" ~ "No",
+  #     TRUE              ~ NA_character_
+  #   )
+  # )) %>%
+  # ungroup()
+
+
+# --- Convert to egor Object -----------------------------------
 # Specify the start and stop cols of the alter attributes such
 # as gender, age, smoking status, etc. The input data is expected
 # to be arranged in such a manner that aa.first.var through the 
 # last column all contain the alter-to-alter tie block of cols.
 # n.b. will produce a warning, but it's benign because invalid
 # entries will be filtered out in a subsequent step.
+
+tictoc::tic()
 ego_network_long <- invisible(onefile_to_egor(
   egos            = filtered_ego_data,
   ID.vars         = list(ego = "ego_id"),
@@ -245,15 +270,28 @@ ego_network_long <- invisible(onefile_to_egor(
   max.alters      = 25,
   aa.first.var    = "m1_2"
 ))
+tictoc::toc()
 
-# ─── Identify Valid Alters ────────────────────────────────────
+# Export to spot_check
+write_csv(ego_network_long[["ego"]], "C:\\Users\\rodrica2\\OneDrive - The University of Colorado Denver\\Documents\\DFM\\projects\\hsq\\scripts\\network_measures\\data\\alters_per_ego_baseline.csv")
+
+
+# unfiltered_ego_network_long <- invisible(onefile_to_egor(
+#   egos            = unfiltered_ego_data,
+#   ID.vars         = list(ego = "ego_id"),
+#   attr.start.col  = "altgender_a1",
+#   attr.end.col    = "altquitnow_a25",
+#   max.alters      = 25,
+#   aa.first.var    = "m1_2"
+# ))
+
+
+# --- Identify Valid Alters ------------------------------------
 # Take the long ego network objected and flatten it out to make
 # it a functionally wide tibble, then sort, and select the
 # relevant columns of the alter names in order to determine if
 # a value is present. Finally, convert back to long to use as a
 # mask.
-# n.b. This is a bit redundant since all rows with missing alter
-# names or missing alter-alter ties are dropped. 
 alter_mask <- ego_network_long %>%
   as_tibble() %>%
   arrange(.egoID) %>%
@@ -262,51 +300,63 @@ alter_mask <- ego_network_long %>%
   pivot_longer(cols = everything()) %>%
   pull(value)
 
-# ─── Filter Alters and Alter-Alter Ties ───────────────────────
+# --- Filter Alters and Alter-Alter Ties -----------------------
 # In this step, only ties which are Somewhat likely or Very 
 # likely are retained as a measure of tie/link.
 final_ego_network <- ego_network_long %>%
   activate(alter) %>%
-  filter(alter_mask) %>%
+  # filter(alter_mask) %>%
   activate(aatie) %>%
   filter(weight != "" & weight != "Not at all likely")
 
-# ─── Add Alter Names ──────────────────────────────────────────
+
+# unfiltered_final_ego_network <- unfiltered_ego_network_long %>%
+#   activate(alter) %>%
+#   # filter(alter_mask) %>%
+#   activate(aatie) %>%
+#   filter(weight != "" & weight != "Not at all likely")
+
+
+
+# --- Add Alter Names ------------------------------------------
 final_ego_network$alter$aname <- c(t(final_ego_network$ego[, 2:26]))
 
-# ─── Numeric Tie Weights ──────────────────────────────────────
+# unfiltered_final_ego_network$alter$aname <- c(t(unfiltered_final_ego_network$ego[, 2:26]))
+
+
+# --- Numeric Tie Weights --------------------------------------
 # Create a numeric tie weight to supplement the binary ties.
 # n.b. *** unsure how values of 1 and 3 were determined, but
-# could be used to calculated weighted network measures.
-final_ego_network$aatie <- final_ego_network$aatie %>%
-  mutate(weight2 = case_when(
-    weight == "Somewhat likely" ~ 1,
-    weight == "Very likely"     ~ 3,
-    TRUE                        ~ NA_real_
-  ))
+# could be used to calculate weighted network measures.
+# final_ego_network$aatie <- final_ego_network$aatie %>%
+#   mutate(weight2 = case_when(
+#     weight == "Somewhat likely" ~ 1,
+#     weight == "Very likely"     ~ 3,
+#     TRUE                        ~ NA_real_
+#   ))
 ```
 
 ```{r}
 data <- data %>%
   filter(ego_id %in% filtered_ego_data$ego_id)
 
+
 # Filter all_data to the participants of interest
   # all_data <- all_data  %>%
   #   filter(record_id %in% filtered_ego_data$record_id)
 ```
 
-
 ```{r}
-# ─── Parallel Vectors ─────────────────────────────────────────
+# --- Parallel Vectors -----------------------------------------
 # Create two vectors of the same length to iterate with purrr
 # to be used with functions from the igraph package
 graphs <- as_igraph(final_ego_network, include.ego = FALSE)
 ego_ids <- final_ego_network$ego$.egoID
 ```
 
-<!-- Density -->
+<!-- ////////////////////////////// Density ////////////////////////////// -->
 ```{r}
-# # ─── Vectorized for-loop ──────────────────────────────────────
+# # --- Vectorized for-loop --------------------------------------
 # # For each x and y, compute the density and bind to the ego id,
 # # collect all results and output to a data frame.
 # density_results <- map2_dfr(graphs, ego_ids, ~ {
@@ -314,17 +364,18 @@ ego_ids <- final_ego_network$ego$.egoID
 # })
 
 
-# ─── egoR version ────────────────────────────────────────────────
+# --- egoR version ------------------------------------------------
 density_results <- ego_density(final_ego_network)
 ```
 
-<!-- Number of components -->
+
+<!-- //////////////////////// Number of components ////////////////////////-->
 ```{r}
 # Number of components
 # components(graphs[[1]])$no # test
 
-# ─── Vectorized for-loop ──────────────────────────────────────
-# For each x and y, compute the density and bind to the ego id,
+# --- Vectorized for-loop --------------------------------------
+# For each x and y, compute the n comps and bind to the ego id,
 # collect all results and output to a data frame.
 components_results <- map2_dfr(graphs, ego_ids, ~ {
   data.frame(ego = .y, n_components = components(.x)$no)
@@ -332,42 +383,295 @@ components_results <- map2_dfr(graphs, ego_ids, ~ {
 rename(".egoID" = "ego")
 ```
 
-
-<!-- Betweenness Centralization -->
+<!-- ///////////////////// Betweenness Centralization /////////////////////-->
 ```{r}
-# betweenness centralization
-# igraph::centralization.betweenness(graphs[[1]], normalized = TRUE)$centralization
-# resulted in a warning to use centr_betw().
-# centr_betw(graphs[[1]])$centralization # test
-
-# ─── Vectorized for-loop ──────────────────────────────────────
-# For each x and y, compute the density and bind to the ego id,
+# --- Vectorized for-loop --------------------------------------
+# For each x and y, compute the btw centr and bind to the ego id,
 # collect all results and output to a data frame. Since two
 # pacakges are used to compute the network metrics, perform
-# harmonization on the ego column name.
+# harmonization on the ego column name via rename().
 btw_centr_results <- map2_dfr(graphs, ego_ids, ~ {
   data.frame(ego = .y, btw_centr = centr_betw(.x)$centralization)
 }) %>%
 rename(".egoID" = "ego")
 ```
 
-<!-- Degree Centralization -->
+<!-- ///////////////////// Betweenness/Node Centrality /////////////////////-->
+```{r}
+# Betweeness centrality (not same as centralization)
+# graphs does not include the ego, each graph is comprised of 25 elements, 
+# ties between alters only. For each participant/ego, calculate the node 
+# centrality measure and capture the smoking status of each alter.
+
+# The objective is capture the smoking status of the alter that has the highest
+# node centrality value. However, there are ties in the data set, in some
+# networks the node centrality values are all 0s leading to 25 alters tied for
+# the highest value.
+
+node_centrality_L <- map2(graphs, ego_ids, ~ {
+    df = betweenness(
+      .x,
+      v = V(.x),
+      directed = FALSE,
+      weights = NA,
+      normalize = FALSE,
+      cutoff = -1) %>%
+    as_tibble() %>%
+    mutate(alter = 1:nrow(.)) %>%
+    arrange(desc(value)) %>%
+    mutate("ego_id" = .y) %>%
+    mutate(alter = str_c("altsmoke_a", alter, "___1"))
+
+  tied_rows <- df %>% 
+    filter(value == max(value, na.rm = TRUE))
+
+  # Pull the names of the columns needed to extract from data
+  alter_ids <- df %>% 
+    pull(alter)
+
+  # Capture the smoking status of each alter, ordered by the
+  # alter ids
+  alt_smoke_status <- data %>%
+    filter(ego_id == .y) %>%
+    select(all_of(alter_ids)) %>%
+    pivot_longer(cols = everything(), names_to = "alter", values_to = "alt_smoke") %>%
+    mutate(alt_smoke = ifelse(alt_smoke == "Checked", 1, 0))
+
+  # Join the smoking status to df
+  df <- left_join(df, alt_smoke_status, by = "alter")
+
+  # Create a list that will be be the output
+  list(
+    data = df, 
+    ties = if (nrow(tied_rows) > 1) tied_rows else NULL
+  )
+
+})
+
+# Produce a data frame listing the number of ties for node centrality for each 
+# ego then filter, to see which Ids have ties, size of df will also give the 
+# number of participants with ties.
+n_tied_node_centrality <- enframe(
+  map_dbl(node_centrality_L, ~ {if (is.null(.x$ties)) 0 else .x$ties %>% nrow()}),
+  name = "ego_id",
+  value = "n_tied"
+) 
+
+# of those with ties, display the frequency and proportion of number of ties
+n_tied_node_centrality %>% 
+  filter(n_tied > 0) %>%
+  select(n_tied) %>%
+  mutate(n_tied = factor(n_tied)) %>%
+  tbl_summary()
+```
+
+<!-- /////////////////////// Degree Centralization //////////////////////// -->
 ```{r}
 # degree centralization
 # centr_degree(graphs[[1]])$centralization
 
-# ─── Vectorized for-loop ──────────────────────────────────────
-# For each x and y, compute the density and bind to the ego id,
+# --- Vectorized for-loop --------------------------------------
+# For each x and y, compute the deg centr and bind to the ego id,
 # collect all results and output to a data frame. Since two
 # pacakges are used to compute the network metrics, perform
-# harmonization on the ego column name.
+# harmonization on the ego column name via rename().
 deg_centr_results <- map2_dfr(graphs, ego_ids, ~ {
   data.frame(ego = .y, deg_centr = centr_degree(.x)$centralization)
 }) %>%
 rename(".egoID" = "ego")
 ```
 
-<!-- homophily gender -->
+<!-- /////////////////////////////// Degree ////////////////////////////////-->
+```{r}
+# *** CHECK FOR WARNING
+degree_L <- map2(graphs, ego_ids, ~ {
+    df = degree(
+      .x,
+      v = V(.x),
+      mode = "all",
+      loops = TRUE,
+      normalize = FALSE) %>%
+    as_tibble() %>%
+    mutate(alter = 1:nrow(.)) %>%
+    arrange(desc(value)) %>%
+    mutate("ego_id" = .y) %>%
+    mutate(alter = str_c("altsmoke_a", alter, "___1"))
+
+  tied_rows <- df %>% 
+    filter(value == max(value, na.rm = TRUE))
+
+  # Pull the names of the columns needed to extract from data
+  alter_ids <- df %>% 
+    pull(alter)
+
+  # Capture the smoking status of each alter, ordered by the
+  # alter ids
+  alt_smoke_status <- data %>%
+    filter(ego_id == .y) %>%
+    select(all_of(alter_ids)) %>%
+    pivot_longer(cols = everything(), names_to = "alter", values_to = "alt_smoke") %>%
+    mutate(alt_smoke = ifelse(alt_smoke == "Checked", 1, 0))
+
+  # Join the smoking status to df
+  df <- left_join(df, alt_smoke_status, by = "alter")
+
+  # Create a list that will be be the output
+  list(
+    data = df, 
+    ties = if (nrow(tied_rows) > 1) tied_rows else NULL
+  )
+
+})
+
+# Produce a data frame listing the number of ties for node centrality for each 
+# ego then filter, to see which Ids have ties, size of df will also give the 
+# number of participants with ties.
+n_tied_degree <- enframe(
+  map_dbl(degree_L, ~ {if (is.null(.x$ties)) 0 else .x$ties %>% nrow()}),
+  name = "ego_id",
+  value = "n_tied"
+) 
+
+# of those with ties, display the frequency and proportion of number of ties
+n_tied_degree %>% 
+  filter(n_tied > 0) %>%
+  select(n_tied) %>%
+  mutate(n_tied = factor(n_tied)) %>%
+  tbl_summary()
+```
+
+<!-- ///////////////////////////// Closeness ////////////////////////////// -->
+```{r}
+# Closeness
+# closeness <- map2_dfr(
+#   graphs, ego_ids, ~ {
+#   closeness = closeness(
+#   graphs[[5]], 
+#   vids = V(graphs[[5]]), 
+#   mode = "in", 
+#   weights = NA, 
+#   normalize = FALSE, 
+#   cutoff = -1) %>%
+#   as_tibble() %>%
+#   mutate(alter = 1:nrow(.)) %>%
+#   arrange(desc(value)) %>%
+#   rename(closeness = value) %>%
+#   slice_head() %>%
+#   mutate("ego_id" = .y) %>%
+#   mutate(alter = str_c("altsmoke_a", alter, "___1"))
+# })
+
+closeness_L <- map2(graphs, ego_ids, ~ {
+    df = closeness(
+      .x,
+      vids = V(.x),
+      mode = "all",
+      weights = NA,
+      normalize = FALSE,
+      cutoff = -1) %>%
+    as_tibble() %>%
+    mutate(alter = 1:nrow(.)) %>%
+    arrange(desc(value)) %>%
+    mutate("ego_id" = .y) %>%
+    mutate(alter = str_c("altsmoke_a", alter, "___1"))
+
+  tied_rows <- df %>% 
+    filter(value == max(value, na.rm = TRUE))
+
+  # Pull the names of the columns needed to extract from data
+  alter_ids <- df %>% 
+    pull(alter)
+
+  # Capture the smoking status of each alter, ordered by the
+  # alter ids
+  alt_smoke_status <- data %>%
+    filter(ego_id == .y) %>%
+    select(all_of(alter_ids)) %>%
+    pivot_longer(cols = everything(), names_to = "alter", values_to = "alt_smoke") %>%
+    mutate(alt_smoke = ifelse(alt_smoke == "Checked", 1, 0))
+
+  # Join the smoking status to df
+  df <- left_join(df, alt_smoke_status, by = "alter")
+
+  # Create a list that will be be the output
+  list(
+    data = df, 
+    ties = if (nrow(tied_rows) > 1) tied_rows else NULL
+  )
+
+})
+
+# Produce a data frame listing the number of ties for node centrality for each 
+# ego then filter, to see which Ids have ties, size of df will also give the 
+# number of participants with ties.
+n_tied_closeness <- enframe(
+  map_dbl(closeness_L, ~ {if (is.null(.x$ties)) 0 else .x$ties %>% nrow()}),
+  name = "ego_id",
+  value = "n_tied"
+) 
+
+# of those with ties, display the frequency and proportion of number of ties
+n_tied_closeness %>% 
+  filter(n_tied > 0) %>%
+  select(n_tied) %>%
+  mutate(n_tied = factor(n_tied)) %>%
+  tbl_summary()
+```
+
+
+<!-- ///////////////////////////// Community ////////////////////////////// -->
+```{r}
+# Community Louvain
+# Similar to the cluster_edge_betweeness() function, it returns an igraph 
+# object, but not sure what value is needed
+# Returns membership, memberships, 
+community_lu <- cluster_louvain(
+  graphs[[1]], 
+  weights = NA, 
+  resolution = 1)
+
+
+# Lists what community each alter belongs to
+membership(community_lu)
+
+# Displays one value for modularity
+modularity(community_lu)
+
+# The number of communities
+length(community_lu)
+
+# For each community, how many members
+sizes(community_lu)
+
+# For each available pairwise edge/connection, returns a logical value. If TRUE, the edge connects two different communities, according to the (best) membership vector
+crossing(community_lu, graphs[[1]])
+
+plot(
+  community_lu,
+  graphs[[1]],
+  col = membership(community_lu),
+  mark.groups = communities(community_lu),
+  edge.color = c("black", "red")[crossing(community_lu, graphs[[1]]) + 1],
+)
+```
+
+```{r}
+# Community Girvan-Newman
+# This algorithm returns an Igraph communities object for each graph, each object
+# then has multiple elements
+community_gn <- cluster_edge_betweenness(
+  graphs[[1]],
+  weights = NA,
+  directed = FALSE,
+  edge.betweenness = TRUE,
+  merges = TRUE,
+  bridges = TRUE,
+  modularity = TRUE,
+  membership = TRUE
+)
+```
+
+<!-- ////////////////////////// homophily gender ////////////////////////// -->
 ```{r}
 # homophily
 comp_ei_results_gender <- comp_ei(
@@ -377,8 +681,7 @@ comp_ei_results_gender <- comp_ei(
   rename(homophily_gender = ei)
 ```
 
-
-<!-- homophily age_cat -->
+<!-- ///////////////////////// homophily age_cat ////////////////////////// -->
 ```{r}
 comp_ei_results_age_cat <- comp_ei(
   final_ego_network, 
@@ -388,14 +691,7 @@ comp_ei_results_age_cat <- comp_ei(
 ```
 
 
-```{r}
-comp_ei_results_age_cat_55 <- comp_ei(
-  final_ego_network, 
-  ego.attr = "age_cat_55", 
-  alt.attr = "altage_a") %>%
-  rename(homophily_age_cat_55 = ei)
-```
-
+<!-- ////////////////////// collect network metrics /////////////////////// -->
 ```{r}
 # Stitch together network results
 network_metrics <- reduce(list(
@@ -409,10 +705,10 @@ network_metrics <- reduce(list(
 
 ```
 
-
-<!-- Percent of alters supporting quitting -->
+<!-- /////////////// Percent of alters supporting quitting //////////////// -->
 ```{r}
-percent_support_quit <- data %>%
+percent_support_quit <- 
+  data %>%
   select(ego_id, arm, starts_with("altsupport_a")) %>%
   mutate(across(starts_with("altsupport_a"), ~ ifelse(.x == "Yes", 1, 0))) %>%
   mutate(row_sum = rowSums(select(., starts_with("altsupport_a")))) %>%
@@ -429,22 +725,22 @@ data <- data %>%
 
 ```{r}
 data <- data %>%
-  left_join(
-    network_metrics,
-    by = c("ego_id" = ".egoID")
-  )
-
-data <- data %>%
   mutate(event_name = sub("^[^_]*_", "", ego_id),
          record_id = sub("_.*", "", ego_id))
 ```
 
+<!-- //////////////// Write out collected dat to .csv file //////////////// -->
 ```{r}
+# At this point the node level measures like node centrality, closeness, and 
+# degree have not been arranged to a point for output, because of issues with 
+# ties. There are cases where there are as many ties as there are alters. 
+# Usually, these result from cases where each alter has a value of 0 for a 
+# given metric. Suggests possible data quality issues
 data %>%
   left_join(
     survey_0mo %>% select(hsqid, record_id) %>% mutate(record_id = as.character(record_id)),
     by = "record_id") %>%
-  select(hsqid, arm, event_name, density:homophily_age_cat, everything(), -record_id) %>%
+  select(hsqid, arm, event_name, density:perc_supp_quit, everything(), -record_id) %>%
   arrange(hsqid) %>%
   write_csv(here("analyses_sas", "data", "hsq_network_data.csv"), na = "")
 ```

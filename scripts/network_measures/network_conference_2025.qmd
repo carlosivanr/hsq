@@ -12,6 +12,11 @@ execute:
   warning: false
 ---
 
+
+```{r}
+# For network conference in Paris, France 2024.
+```
+
 ```{r}
 library(tidyverse)
 library(gtsummary) 

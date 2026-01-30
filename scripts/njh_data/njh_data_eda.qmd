@@ -15,6 +15,7 @@ from great_tables import GT, md, html
 from pyprojroot import here
 from dfm_tb.tables import freq_prop
 from dfm_tb.tables import summarize
+from datetime import datetime
 ```
 
 ```{python}
@@ -78,7 +79,12 @@ from dfm_tb.tables import summarize
 
 ```{python}
 # Load the most recent data file
-data = pd.read_csv(here("scripts/njh_data/njh_data.csv"), header = 0)
+# data = pd.read_csv(here("scripts/njh_data/data/prepped/njh_data_12-04-2025.csv"), header = 0)
+
+# Read as .xlsx since the intake dates in the extract were formatted, which means data will be converted
+# to numeric 
+# data = pd.read_excel(here("scripts/njh_data/data/prepped/njh_data_12-18-2025.xlsx"), header = 0)
+data = pd.read_excel(here("scripts/njh_data/data/prepped/njh_data_01-29-2026.xlsx"), header = 0)
 ```
 
 ```{python}
@@ -89,10 +95,23 @@ data = data[data["State Client"] != "OH"]
 
 ```{python}
 # Load the OH data
-oh = pd.read_csv(here("scripts/njh_data/Helpers Quit Study Data Extract 3.21.25_OH final.csv"), header = 0)
+oh = pd.read_csv(here("scripts/njh_data/data/prepped/Helpers Quit Study Data Extract 3.21.25_OH final.csv"), header = 0)
+
+oh['DOB'] = pd.to_datetime(oh['DOB'], format='%d-%b-%y')
+
+oh.loc[oh['DOB'].dt.year > datetime.now().year, 'DOB'] -= pd.offsets.DateOffset(years=100)
+
+oh['WebIntakeDate'] = pd.to_datetime(oh['WebIntakeDate'], format='%d-%b-%y')
+
+oh['PhoneIntakeDate'] = pd.to_datetime(oh['PhoneIntakeDate'], format='%d-%b-%y')
 ```
 
 ```{python}
+# Before stacking, remove any trailing white space from the column names
+data.columns = data.columns.str.strip()
+oh.columns = oh.columns.str.strip()
+
+
 # Stack data and oh
 data = pd.concat([data, oh], ignore_index=True)
 ```
@@ -100,10 +119,10 @@ data = pd.concat([data, oh], ignore_index=True)
 ```{python}
 # Load the mapper
 # The mapper file has the mapping between the question text/label and the column name
-mapper = pd.read_csv(here("scripts/njh_data/text_question_map.csv"), header = 0)
+mapper = pd.read_csv(here("scripts/njh_data/data/mapping/text_question_map.csv"), header = 0)
 ```
 
-# Total number of participants
+# Total number of participants in NJH data
 ```{python}
 # Display the total number of rows in the NJH data set
 GT(pd.DataFrame.from_dict({'Number of participants': [len(data)]}))
@@ -248,7 +267,8 @@ freq_prop(data, 'Cigarettes Per Day (SI 7a)')
 ```
 
 ```{python}
-summarize(data, 'Cigarettes Per Day (SI 7a)')
+# SI 7a
+summarize(data, 'Cigarettes Per Day')
 ```
 
 ### Are the cigarettes you usually smoke menthol cigarettes?
@@ -286,7 +306,7 @@ freq_prop(data.query("`SI 5b` == 'Yes'"), 'SI 6b')
 ### Cigars Per Week
 - Branches from SI 5b
 ```{python}
-freq_prop(data.query("`SI 5b` == 'Yes'"), 'Cigars Per Week (SI 7b)')
+freq_prop(data.query("`SI 5b` == 'Yes'"), 'Cigars Per Week')
 ```
 
 ### Are the cigars you usually smoke menthol cigars? (MA only)
@@ -318,7 +338,7 @@ freq_prop(data, 'SI 5c')
 
 ### Pipes Per Week
 ```{python}
-freq_prop(data.query("`SI 5c` == 'Yes'"), 'Pipes Per Week (SI 7c)')
+freq_prop(data.query("`SI 5c` == 'Yes'"), 'Pipes Per Week')
 ```
 <!-- ----------------------- PIPE STOP ------------------------------------ -->
 
@@ -341,7 +361,7 @@ freq_prop(data.query("`SI 5d` == 'Yes'"), 'SI 6d')
 - Branches from SI 5d
 ```{python}
 # The name of this column contains an extra space between Week and (SI...)
-freq_prop(data.query("`SI 5d` == 'Yes'"), 'Pouch Per Week (SI 7d)')
+freq_prop(data.query("`SI 5d` == 'Yes'"), 'Pouch Per Week')
 ```
 
 ### How soon after you wake, do you first use spit tobacco, snuff or chew?
@@ -592,19 +612,11 @@ freq_prop(data, 'SI 18f')
 ```
 
 
-
-
-
-
-
-
-
-
 ```{python}
-# Save data to .csv
-# data.to_csv(
-#   "C:\\Users\\rodrica2\\OneDrive - The University of Colorado Denver\\Documents\\DFM\\projects\\hsq\\analyses_sas\data\\njh_data.csv", 
-#   index= False)
+# Save data to .csv -----------------------------------------------------------
+data.to_csv(
+  "C:\\Users\\rodrica2\\OneDrive - The University of Colorado Denver\\Documents\\DFM\\projects\\hsq\\analyses_sas\data\\njh_data.csv", 
+  index= False)
 
 # mapper.to_csv(
 #   "C:\\Users\\rodrica2\\OneDrive - The University of Colorado Denver\\Documents\\DFM\\projects\\hsq\\analyses_sas\data\\njh_dict.csv", 

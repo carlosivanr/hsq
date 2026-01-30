@@ -173,6 +173,27 @@ data_lst[c(3,5)] %>%
           tab_spanner = c("**6mo**", "**12mo**"))
 ```
 
+```{r}
+#| eval: false
+# Placed here to deliver a table to Jun for the missing rates of one 
+# question from the longitudinal data
+long_data_missing <- data_lst[c(2, 3, 4, 5)] %>%
+  purrr::map( ~.x %>%
+                select(fu_smoke1, arm) %>%
+                mutate(fu_smoke1 = ifelse(is.na(fu_smoke1), "Missing", "Not Missing")) %>%
+                tbl_summary(by = arm, type = all_dichotomous() ~ "categorical",
+                            label = fu_smoke1 ~ "Smoked in past 30 days") %>%
+                add_p()       
+              ) %>%
+  tbl_merge(.,
+          tab_spanner = c("**3mo**", "**6mo**", "**9mo**", "**12mo**"))
+
+long_data_missing %>%
+  as_gt() %>%
+  gt::gtsave(filename = "C:\\Users\\rodrica2\\OneDrive - The University of Colorado Denver\\Documents\\DFM\\projects\\hsq\\scripts\\missing_rates_by_arm.docx") # use extensions .png, .html, .docx, .rtf, .tex, .ltx
+
+```
+
 #### Have you smoked cigarettes in the past 7 days (even a puff)?
 - Denominators includes those that have been enrolled in the study for the 6 or 12 months plus a 14-day grace period to complete the survey.
 - "No" responses from 30-day time point carried over to 7-day time point
