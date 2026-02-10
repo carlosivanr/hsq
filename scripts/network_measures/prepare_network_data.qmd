@@ -396,10 +396,10 @@ btw_centr_results <- map2_dfr(graphs, ego_ids, ~ {
 rename(".egoID" = "ego")
 ```
 
-<!-- ///////////////////// Betweenness/Node Centrality /////////////////////-->
+<!-- ///////////////////// Node/Vertex Betweenness Centrality /////////////////////-->
 ```{r}
-# Betweeness centrality (not same as centralization)
-# graphs does not include the ego, each graph is comprised of 25 elements, 
+# Betweeness centrality (not the same as centralization)
+# graphs dos not include the ego, each graph is comprised of 25 elements, 
 # ties between alters only. For each participant/ego, calculate the node 
 # centrality measure and capture the smoking status of each alter.
 
@@ -465,6 +465,27 @@ n_tied_node_centrality %>%
   tbl_summary()
 ```
 
+
+```{r}
+# Create a data set of the ego_id, max value for node_centrality, and the number of
+# ties encountered in the ego's network.
+
+node_centr_df <- left_join(
+# The max value for all egos
+map_df(node_centrality_L, ~ .x[[1]][1, ]) %>%
+  select(ego_id, value) %>%
+  rename(max_node_centr = value),
+
+
+# The number of ties for all egos
+n_tied_node_centrality %>%
+  rename(n_tide_node_centr = n_tied),
+
+by = "ego_id")
+
+```
+
+
 <!-- /////////////////////// Degree Centralization //////////////////////// -->
 ```{r}
 # degree centralization
@@ -483,13 +504,12 @@ rename(".egoID" = "ego")
 
 <!-- /////////////////////////////// Degree ////////////////////////////////-->
 ```{r}
-# *** CHECK FOR WARNING
 degree_L <- map2(graphs, ego_ids, ~ {
     df = degree(
       .x,
       v = V(.x),
       mode = "all",
-      loops = TRUE,
+      loops = FALSE,
       normalize = FALSE) %>%
     as_tibble() %>%
     mutate(alter = 1:nrow(.)) %>%
@@ -533,34 +553,35 @@ n_tied_degree <- enframe(
 ) 
 
 # of those with ties, display the frequency and proportion of number of ties
-n_tied_degree %>% 
-  filter(n_tied > 0) %>%
-  select(n_tied) %>%
-  mutate(n_tied = factor(n_tied)) %>%
-  tbl_summary()
+# n_tied_degree %>% 
+#   filter(n_tied > 0) %>%
+#   select(n_tied) %>%
+#   mutate(n_tied = factor(n_tied)) %>%
+#   tbl_summary()
+```
+
+```{r}
+# Create a data set of the ego_id, max value for degree, and the number of
+# ties encountered in the ego's network.
+
+degree_df <- left_join(
+# The max value for all egos
+map_df(degree_L, ~ .x[[1]][1, ]) %>%
+  select(ego_id, value) %>%
+  rename(max_degree = value),
+
+
+# The number of ties for all egos
+n_tied_degree %>%
+  rename(n_tide_degree = n_tied),
+
+by = "ego_id")
+
 ```
 
 <!-- ///////////////////////////// Closeness ////////////////////////////// -->
 ```{r}
-# Closeness
-# closeness <- map2_dfr(
-#   graphs, ego_ids, ~ {
-#   closeness = closeness(
-#   graphs[[5]], 
-#   vids = V(graphs[[5]]), 
-#   mode = "in", 
-#   weights = NA, 
-#   normalize = FALSE, 
-#   cutoff = -1) %>%
-#   as_tibble() %>%
-#   mutate(alter = 1:nrow(.)) %>%
-#   arrange(desc(value)) %>%
-#   rename(closeness = value) %>%
-#   slice_head() %>%
-#   mutate("ego_id" = .y) %>%
-#   mutate(alter = str_c("altsmoke_a", alter, "___1"))
-# })
-
+# *** PRODUCES WARNINGS due to data QA
 closeness_L <- map2(graphs, ego_ids, ~ {
     df = closeness(
       .x,
@@ -575,6 +596,10 @@ closeness_L <- map2(graphs, ego_ids, ~ {
     mutate("ego_id" = .y) %>%
     mutate(alter = str_c("altsmoke_a", alter, "___1"))
 
+  # *** Produces warnings, when all values of closeness are missing like 
+  # indexes 44, 96, 275, etc. max_closeness is NaN in closeness_df. The indexes
+  # can be used to look up the ego_id/record_id. These individuals likely
+  # straightlined the strength of their responses.
   tied_rows <- df %>% 
     filter(value == max(value, na.rm = TRUE))
 
@@ -611,16 +636,59 @@ n_tied_closeness <- enframe(
 ) 
 
 # of those with ties, display the frequency and proportion of number of ties
-n_tied_closeness %>% 
-  filter(n_tied > 0) %>%
-  select(n_tied) %>%
-  mutate(n_tied = factor(n_tied)) %>%
-  tbl_summary()
+# n_tied_closeness %>% 
+#   filter(n_tied > 0) %>%
+#   select(n_tied) %>%
+#   mutate(n_tied = factor(n_tied)) %>%
+#   tbl_summary()
 ```
 
+```{r}
+# Create a data set of the ego_id, max value for degree, and the number of
+# ties encountered in the ego's network.
+closeness_df <- left_join(
+# The max value for all egos
+map_df(closeness_L, ~ .x[[1]][1, ]) %>%
+  select(ego_id, value) %>%
+  rename(max_closeness = value),
+
+
+# The number of ties for all egos
+n_tied_closeness %>%
+  rename(n_tide_closeness = n_tied),
+
+by = "ego_id")
+
+```
+
+```{r}
+#| eval: false
+check_ego_ids <- closeness_df %>% 
+  filter(is.na(max_closeness))
+
+# Closeness: there are some ego_ids, for which the closeness algorithm returns all missing values.
+check_val = 41
+df = closeness(
+      graphs[[check_val]],
+      vids = V(graphs[[check_val]]),
+      mode = "all",
+      weights = NA,
+      normalize = FALSE,
+      cutoff = -1) %>%
+    as_tibble() %>%
+    mutate(alter = 1:nrow(.)) %>%
+    arrange(desc(value)) %>%
+    mutate("ego_id" = ego_ids[[check_val]]) %>%
+    mutate(alter = str_c("altsmoke_a", alter, "___1"))
+
+  # *** Produces warnings
+  df %>% 
+    filter(value == max(value, na.rm = TRUE))
+```
 
 <!-- ///////////////////////////// Community ////////////////////////////// -->
 ```{r}
+#| eval: false
 # Community Louvain
 # Similar to the cluster_edge_betweeness() function, it returns an igraph 
 # object, but not sure what value is needed
@@ -646,16 +714,40 @@ sizes(community_lu)
 # For each available pairwise edge/connection, returns a logical value. If TRUE, the edge connects two different communities, according to the (best) membership vector
 crossing(community_lu, graphs[[1]])
 
-plot(
-  community_lu,
-  graphs[[1]],
-  col = membership(community_lu),
-  mark.groups = communities(community_lu),
-  edge.color = c("black", "red")[crossing(community_lu, graphs[[1]]) + 1],
-)
+# plot(
+#   community_lu,
+#   graphs[[1]],
+#   col = membership(community_lu),
+#   mark.groups = communities(community_lu),
+#   edge.color = c("black", "red")[crossing(community_lu, graphs[[1]]) + 1],
+# )
 ```
 
+
 ```{r}
+# Purrr version of the louvain algorithm for community detection
+comm_lu_df <- map2_dfr(graphs, ego_ids, ~ {
+  community_lu = cluster_louvain(
+    .x,
+    weights = NA,
+    resolution = 1)
+
+  # Displays one value for modularity
+  modularity_score <- modularity(community_lu)
+
+  # The number of communities
+  comm_len <- length(community_lu)      
+
+  # Create a list that will be be the output
+  data.frame(ego_id = .y, len_comm_lu = comm_len, modularity_lu = modularity_score)
+
+})
+```
+
+
+```{r}
+#| eval: false
+
 # Community Girvan-Newman
 # This algorithm returns an Igraph communities object for each graph, each object
 # then has multiple elements
@@ -669,6 +761,65 @@ community_gn <- cluster_edge_betweenness(
   modularity = TRUE,
   membership = TRUE
 )
+```
+
+
+```{r}
+comm_gn_df <- map2_dfr(graphs, ego_ids, ~ {
+  community_gn = cluster_edge_betweenness(
+    .x,
+    weights = NA,
+    edge.betweenness = TRUE,
+    merges = TRUE,
+    bridges = TRUE,
+    modularity = TRUE,
+    membership = TRUE)
+
+  # Displays one value for modularity
+  modularity_score <- modularity(community_gn)
+
+  # The number of communities
+  comm_len <- length(community_gn)      
+
+  # Create a list that will be be the output
+  data.frame(ego_id = .y, len_comm_gn = comm_len, modularity_gn = modularity_score)
+
+})
+```
+
+
+```{r}
+
+comm_infomap_df <- map2_dfr(graphs, ego_ids, ~ {
+  community_infomap = cluster_infomap(
+    .x,
+    e.weights = NA,
+    v.weights = NA,
+    nb.trials = 50,
+    modularity = TRUE)
+
+  # Displays one value for modularity
+  modularity_score <- modularity(community_infomap)
+
+  # The number of communities
+  comm_len <- length(community_infomap)      
+
+  # Create a list that will be be the output
+  data.frame(ego_id = .y, len_comm_infomap = comm_len, modularity_infomap = modularity_score)
+
+})
+```
+
+
+<!--///////////////////// PUT DATA SETS TOGETHER FOR QA ////////////////////-->
+```{r}
+#| eval: false
+output_df <- reduce(
+  list(node_centr_df, degree_df, closeness_df, comm_lu_df, comm_gn_df, comm_infomap_df),
+  left_join, by = "ego_id"
+)
+
+write_csv(output_df, "C:\\Users\\rodrica2\\OneDrive - The University of Colorado Denver\\Documents\\DFM\\projects\\hsq\\scripts\\network_measures\\data\\qa\\hsq_node_level_networks_qa.csv")
 ```
 
 <!-- ////////////////////////// homophily gender ////////////////////////// -->
