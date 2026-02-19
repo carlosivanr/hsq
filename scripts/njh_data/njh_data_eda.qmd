@@ -79,40 +79,29 @@ from datetime import datetime
 
 ```{python}
 # Load the most recent data file
-# data = pd.read_csv(here("scripts/njh_data/data/prepped/njh_data_12-04-2025.csv"), header = 0)
+data = pd.read_csv(here("scripts/njh_data/data/prepped/njh_data_02-18-2026.csv"), header = 0)
 
-# Read as .xlsx since the intake dates in the extract were formatted, which means data will be converted
-# to numeric 
-# data = pd.read_excel(here("scripts/njh_data/data/prepped/njh_data_12-18-2025.xlsx"), header = 0)
-data = pd.read_excel(here("scripts/njh_data/data/prepped/njh_data_01-29-2026.xlsx"), header = 0)
-```
-
-```{python}
-# Remove the OH participants from the most recent file so that the final OH 
-# participants can be appended
-data = data[data["State Client"] != "OH"]
+# Strip the trailing spaces from the column names
+data.columns = data.columns.str.strip()
 ```
 
 ```{python}
 # Load the OH data
-oh = pd.read_csv(here("scripts/njh_data/data/prepped/Helpers Quit Study Data Extract 3.21.25_OH final.csv"), header = 0)
+oh = pd.read_csv(here("scripts/njh_data/data/prepped/njh_data_OH_03-21-2025.csv"), header = 0)
 
-oh['DOB'] = pd.to_datetime(oh['DOB'], format='%d-%b-%y')
+# Strip the trailing spaces from the column names
+oh.columns = oh.columns.str.strip()
+```
+ 
+```{python}
+#| eval: false
+# Check the time windows and the column names
 
-oh.loc[oh['DOB'].dt.year > datetime.now().year, 'DOB'] -= pd.offsets.DateOffset(years=100)
-
-oh['WebIntakeDate'] = pd.to_datetime(oh['WebIntakeDate'], format='%d-%b-%y')
-
-oh['PhoneIntakeDate'] = pd.to_datetime(oh['PhoneIntakeDate'], format='%d-%b-%y')
 ```
 
 ```{python}
-# Before stacking, remove any trailing white space from the column names
-data.columns = data.columns.str.strip()
-oh.columns = oh.columns.str.strip()
-
-
-# Stack data and oh
+# Ensure that all column names are harmonized. Some had trailing spaces while 
+# others had "Desc" appended to the column name
 data = pd.concat([data, oh], ignore_index=True)
 ```
 
@@ -615,7 +604,7 @@ freq_prop(data, 'SI 18f')
 ```{python}
 # Save data to .csv -----------------------------------------------------------
 data.to_csv(
-  "C:\\Users\\rodrica2\\OneDrive - The University of Colorado Denver\\Documents\\DFM\\projects\\hsq\\analyses_sas\data\\njh_data.csv", 
+  "C:\\Users\\rodrica2\\OneDrive - The University of Colorado Denver\\Documents\\DFM\\projects\\hsq\\analyses_sas\\data\\njh_data.csv", 
   index= False)
 
 # mapper.to_csv(

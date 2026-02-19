@@ -94,13 +94,86 @@ data_lst <- list(
 
 # Process variables
 data_lst %<>%
-  purrr::map( ~.x %>%
+  purrr::map(~.x %>%
                 mutate(
                        gender = recode(gender, 
                         ",Man (including transman and transmasculine)" = "Man",
                         "Woman (including transwoman and transfeminine)" = "Woman",
                         "Prefer to self-describe (non-binary, gender queer) please specify below" = "Prefer to self-describe"))
               )
+```
+
+```{r}
+#| eval: false
+
+# This section is designed to output a .csv file showing the response rates to 
+# the longitudinal surveys using se5 for baseline, and fu_smoke1 for the 
+# following timepoints (3m, 6m, 9m, and 12m). Requested by Jun Ying for data 
+# qa purposes.
+
+longitudinal_response_rates <- 
+# 0mo
+left_join(
+  data_lst[[1]] %>% 
+    select(record_id, arm, se5) %>% 
+    mutate(
+      due_for_0m = 1, 
+      complete_0m = ifelse(!is.na(se5), 1, 0)) %>% 
+    select(-se5),
+
+  # 3mo
+  data_lst[[2]] %>% 
+    select(record_id, fu_smoke1) %>% 
+    mutate(
+      due_for_3m = 1, 
+      complete_3m = ifelse(!is.na(fu_smoke1), 1, 0)) %>% 
+    select(-fu_smoke1),
+  by = "record_id") %>%
+
+left_join(
+  # 6mo
+  data_lst[[3]] %>% 
+    select(record_id, fu_smoke1) %>% 
+    mutate(
+      due_for_6m = 1, 
+      complete_6m = ifelse(!is.na(fu_smoke1), 1, 0)) %>% 
+    select(-fu_smoke1),
+  by = "record_id") %>%
+
+left_join(
+  # 9mo
+  data_lst[[4]] %>% 
+    select(record_id, fu_smoke1) %>% 
+    mutate(
+      due_for_9m = 1, 
+      complete_9m = ifelse(!is.na(fu_smoke1), 1, 0)) %>% 
+    select(-fu_smoke1),
+  by = "record_id") %>%
+
+left_join(
+  # 12mo
+  data_lst[[5]] %>% 
+    select(record_id, fu_smoke1) %>% 
+    mutate(
+      due_for_12m = 1, 
+      complete_12m = ifelse(!is.na(fu_smoke1), 1, 0)) %>% 
+    select(-fu_smoke1),
+  by = "record_id")
+
+longitudinal_response_rates %<>%
+  mutate(across(due_for_6m:complete_12m, ~ ifelse(is.na(.x), 0, .x)))
+
+longitudinal_response_rates %<>%
+  left_join(
+    data %>% 
+      select(record_id, hsqid) %>% 
+      distinct() %>% 
+      filter(record_id %in% longitudinal_response_rates$record_id),
+    by = "record_id") %>% 
+  select(-record_id) %>% 
+  select(hsqid, arm, everything())
+
+write_csv(longitudinal_response_rates, file = "C:\\Users\\rodrica2\\OneDrive - The University of Colorado Denver\\Documents\\DFM\\projects\\hsq\\scripts\\primary_outcomes_completion_report\\response_rates\\longitudinal_response_rates.csv")
 ```
 
 ```{r, data_lst indexes}
@@ -314,6 +387,63 @@ wide %<>%
 
 # Join wide with weeks in the study for each participant
 wide <- left_join(wide, weeks_in_study, by = "record_id")
+```
+
+```{r}
+#| eval: false
+
+# This section is designed to output a .csv file showing the response rates to the question
+# fu_smoke1 from the sms surveys.
+
+# uses the wide data frame
+for (i in 2:37){
+  col_name <- names(wide[,i])
+  due_name <- str_c("due_for_", col_name)
+  week_num <- as.numeric(substring(col_name, nchar(col_name) -1))
+
+  wide %<>%
+    mutate(!!sym(due_name) := ifelse(week_num <= as.numeric(weeks_since_rand), 1, 0))
+
+}
+
+sms_response_rates <- wide %>%
+  mutate(across(week01:week48, ~ ifelse(is.na(.x), 0, 1)))
+
+# rename and reorder the columns
+sms_names <- names(sms_response_rates)
+sms_names[2:37] <- str_c("complete_", sms_names[2:37])
+
+names(sms_response_rates) <-  sms_names
+
+week_indexes <- 2:37
+
+due_index <- 39:74
+
+ordered_names <- c()
+
+for (i in 1:36) {
+  ordered_names <- c(ordered_names, sms_names[week_indexes[i]])
+
+  ordered_names <- c(ordered_names, sms_names[due_index[i]])
+}
+
+
+sms_response_rates %<>%
+  select(record_id, weeks_since_rand, all_of(ordered_names))
+
+# Merge in an HSQ id
+sms_response_rates %<>% 
+  left_join(
+    sms %>%
+      select(record_id, hsqid) %>%
+      distinct(),
+    by = "record_id")
+
+sms_response_rates %<>% select(-record_id)
+
+sms_response_rates %<>% select(hsqid, everything())
+
+write_csv(sms_response_rates, file = "C:\\Users\\rodrica2\\OneDrive - The University of Colorado Denver\\Documents\\DFM\\projects\\hsq\\scripts\\primary_outcomes_completion_report\\response_rates\\sms_response_rates.csv")
 ```
 
 ```{r, echo = FALSE}
@@ -1023,6 +1153,7 @@ data_lst %>%
 # Output to SAS for analysis
 
 # Flatten the list
+# This produces 941 rows for some reason
 flat_lst <- bind_rows(
   data_lst[[1]],
   data_lst[[2]],
@@ -1032,6 +1163,10 @@ flat_lst <- bind_rows(
 )
 
 # Additional processing -------------------------------------------------------
+# filter to only the hsqids in the sms data because data contains all hsq ids 
+# in the redcap database, but not all were enrolled.
+flat_lst %<>%
+  filter(hsqid %in% t_to_relapse$hsqid)
 
 # Create a single collapsed variable for Race from the select all that apply options
 flat_lst %<>% 

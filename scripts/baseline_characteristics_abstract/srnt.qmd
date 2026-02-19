@@ -215,7 +215,9 @@ hsq %>%
 
 ## Social Network Metrics
 ```{r}
-pna <- read_csv("C:\\Users\\rodrica2\\OneDrive - The University of Colorado Denver\\Documents\\DFM\\projects\\hsq\\analyses_sas\\data\\hsq_network_data.csv", show_col_types = FALSE) %>%
+pna <- read_csv(
+  "C:\\Users\\rodrica2\\OneDrive - The University of Colorado Denver\\Documents\\DFM\\projects\\hsq\\analyses_sas\\data\\hsq_network_data.csv", 
+  show_col_types = FALSE) %>%
   filter(event_name == "0mo")
 ```
 
@@ -262,6 +264,7 @@ njh <- read_csv("C:\\Users\\rodrica2\\OneDrive - The University of Colorado Denv
 
 
 ```{r}
+#| eval: false
 left_join(
   (hsq %>%
   select(hsqid, randomization_dtd)),
@@ -269,6 +272,7 @@ left_join(
     select(Hsqid, WebIntakeDate, PhoneIntakeDate)),
   by = c("hsqid" = "Hsqid")) %>%
   mutate(IntakeDate = coalesce(PhoneIntakeDate, WebIntakeDate)) %>%
+  mutate(across(WebIntakeDate:IntakeDate, ~ as.Date(.x, format = "%m/%d/%Y"))) %>%
   mutate(diff_btw_intake_rand = IntakeDate - randomization_dtd) %>%
   select(-WebIntakeDate, -PhoneIntakeDate) %>%
   write_csv(., "intake_rand_date_diffs.csv")
@@ -708,9 +712,11 @@ njh %>%
     add_p(pvalue_fun = label_style_pvalue(digits = 3))
 ```
 
-### How soon after you wake, do you first smoke a pipe?
-* Subsets to those that answered "Every day" or "Some days" to the question "Do you smoke pipe every day, some days, or not at all?"
+<!-- Commented out since new data does not contain any responses -->
+<!-- ### How soon after you wake, do you first smoke a pipe?
+* Subsets to those that answered "Every day" or "Some days" to the question "Do you smoke pipe every day, some days, or not at all?" -->
 ```{r}
+#| eval: false
 njh %>%
   filter(`SI 6c` %in% c("Every day", "Some days")) %>%
   select(arm, "OI 9-2") %>%
