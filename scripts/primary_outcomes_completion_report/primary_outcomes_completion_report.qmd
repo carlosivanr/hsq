@@ -1150,6 +1150,25 @@ data_lst %>%
 ```
 
 ```{r}
+#| eval: false
+
+# checking Jun's plot of the response rates of the sms surveys
+sms %>% 
+  filter(redcap_event_name %in% c("week02", "week03", "week04", "week06")) %>% 
+  select(hsqid, smoke1, redcap_event_name) %>%
+  mutate(smoke1 = ifelse(is.na(smoke1), 0, 1)) %>%
+  group_by(hsqid) %>%
+  pivot_wider(names_from = redcap_event_name, values_from = smoke1) %>%
+  ungroup() %>%
+  left_join(
+    data %>% filter(hsqid %in% sms$hsqid) %>% select(hsqid, arm) %>% distinct(),
+    by  = "hsqid") %>%
+  select(week02:arm) %>%
+  tbl_summary(by = arm) %>%
+  add_p()
+```
+
+```{r}
 # Output to SAS for analysis
 
 # Flatten the list
@@ -1200,10 +1219,6 @@ flat_lst %<>%
   rowwise() %>%
   mutate(se_confidence = sum(c_across(se1:se5), na.rm = TRUE) / 5) %>%
   ungroup() 
-
-
-
-
 
 
 flat_lst %>%
