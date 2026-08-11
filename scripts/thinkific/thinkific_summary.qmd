@@ -1,0 +1,253 @@
+---
+title: "HSQ - Thinkific Data Summary"
+date: "`r Sys.Date()`"
+format:
+  html:
+    embed-resources: true
+    toc: true
+    number-sections: false
+    
+execute: 
+  echo: false
+  warning: false
+---
+
+```{r}
+# /////////////////////////////////////////////////////////////////////////////
+# Carlos Rodriguez, PhD. CU Dept. of Family Medicine
+# 07/08/2026
+
+# Thinkific Data Summary
+# 1. Relies on custom functions in the 
+# [dfmtbx] package. May need to set GITHUB_PAT.
+#   - usethis::create_github_token()
+#   - gitcreds::gitcreds_set()
+#   - ctrl + shift + v to paste token
+#   - renv::install("carlosivanr/dfmtbx")
+# /////////////////////////////////////////////////////////////////////////////
+```
+
+```{r}
+library(tidyverse)
+library(gtsummary) 
+library(here) 
+```
+
+```{r}
+# To install/update dfmtbx
+# remotes::install_github(
+#   "carlosivanr/dfmtbx",
+#   quiet = FALSE
+# )
+```
+
+# Exam data
+```{r}
+# Load data
+# Data was copied from Egnyte June 26, 2026 and prepped into a .csv file
+data <- read_csv(
+  "C:\\Users\\rodrica2\\OneDrive - The University of Colorado Denver\\Documents\\DFM\\projects\\hsq\\scripts\\thinkific\\data\\raw\\HSQ_Exam_0626.csv",
+  show_col_types = FALSE
+)
+```
+
+
+
+<!-- PREPARE .CSV FILE -->
+```{r}
+# Build the column names
+col_names <- data[1:2,]
+
+question_number_text <- data.frame(
+    name = as.character(col_names[1,] ) %>% unname(),
+    question = as.character(col_names[2,])
+    ) %>%
+  filter(grepl("Question #", name)) %>%
+  pivot_wider(names_from = name, values_from = question)
+```
+
+```{r}
+# Build the question responses
+question_col_numbers <- seq(10, 37, by = 3)
+
+question_col_numbers <- str_c("...", question_col_numbers)
+
+responses <- data %>%
+  select(all_of(question_col_numbers)) %>%
+  tail(length(data$...2) -1)
+
+names(responses) <- names(question_number_text)
+```
+
+```{r}
+# Re load data without the header
+data <- read_csv(
+  "C:\\Users\\rodrica2\\OneDrive - The University of Colorado Denver\\Documents\\DFM\\projects\\hsq\\scripts\\thinkific\\data\\raw\\HSQ_Exam_0626.csv",
+  skip = 1,
+  show_col_types = FALSE
+) %>%
+  select(`Course Name`:`% Score`)
+```
+
+
+```{r}
+# Merge dfs
+data <- bind_cols(data, responses)
+```
+
+### Total number of attempts
+```{r}
+data.frame(
+  Total_Attempts = data %>%
+  nrow()) %>%
+  dfmtbx::format_gt_tbl()
+```
+
+### Number of unique subjects
+```{r}
+data.frame(
+    N_unique_subjects = data %>%
+    group_by(`Student Name`) %>%
+    slice_head() %>%
+    ungroup() %>%
+    nrow()) %>% 
+  dfmtbx::format_gt_tbl()
+
+```
+
+### Subjects with multiple attempts
+```{r}
+data.frame(
+  N_subjects_with_multiple_attempts = data %>%
+  group_by(`Student Name`) %>%
+  count() %>%
+  ungroup() %>%
+  filter(n > 1) %>%
+  nrow()) %>% 
+dfmtbx::format_gt_tbl()
+```
+
+### Average total score
+```{r}
+# Remove duplicated responses
+response_data <- data %>%
+  group_by(`Student Name`) %>%
+  slice_max(`Total Correct`) %>%
+  slice_head() %>%
+  ungroup()
+```
+
+```{r}
+response_data %>%
+  select(`% Score`) %>%
+  tbl_summary(
+    statistic = list(`% Score` ~ "{mean} ({sd})")
+  )
+```
+
+### Proportion of correct responses by question
+```{r}
+question_labels <- as.character(question_number_text[1,])
+
+
+response_data %>%
+  select(starts_with("Question")) %>%
+  mutate(across(everything(), ~ ifelse(.x == TRUE, 1, 0))) %>%
+  tbl_summary(
+    label = list(
+  `Question #1` ~ question_labels[1] ,  
+  `Question #2` ~ question_labels[2] ,
+  `Question #3` ~ question_labels[3] ,
+  `Question #4` ~ question_labels[4] ,
+  `Question #5` ~ question_labels[5] ,
+  `Question #6` ~ question_labels[6] ,
+  `Question #7` ~ question_labels[7] ,
+  `Question #8` ~ question_labels[8] ,
+  `Question #9` ~ question_labels[9] ,
+  `Question #10` ~ question_labels[10] 
+    )
+  )
+```
+
+# Survey data
+```{r}
+survey_data <- read_csv("C:\\Users\\rodrica2\\OneDrive - The University of Colorado Denver\\Documents\\DFM\\projects\\hsq\\scripts\\thinkific\\data\\raw\\HSQ_Survey_0626.csv",
+show_col_types = FALSE)
+```
+
+
+```{r}
+# Build the column names
+col_names <- survey_data[1:2,]
+
+question_number_text <- data.frame(
+    name = as.character(col_names[1,] ) %>% unname(),
+    question = as.character(col_names[2,])
+    ) %>%
+  filter(grepl("Question #", name)) %>%
+  pivot_wider(names_from = name, values_from = question)
+```
+
+```{r}
+# Build the question responses
+question_col_numbers <- seq(8, 22, by = 2)
+
+question_col_numbers <- str_c("...", question_col_numbers)
+
+responses <- survey_data %>%
+  select(all_of(question_col_numbers)) %>%
+  tail(length(survey_data$...2) -1)
+
+names(responses) <- names(question_number_text)
+```
+
+```{r}
+# Re load data without the header
+survey_data <- read_csv("C:\\Users\\rodrica2\\OneDrive - The University of Colorado Denver\\Documents\\DFM\\projects\\hsq\\scripts\\thinkific\\data\\raw\\HSQ_Survey_0626.csv",
+  skip = 1,
+  show_col_types = FALSE
+) %>%
+  select(`Course Name`:`Total Number of Questions`)
+```
+
+
+```{r}
+# Merge dfs
+survey_data <- bind_cols(survey_data, responses)
+```
+
+
+```{r}
+question_labels <- as.character(question_number_text[1,])
+
+survey_data %>%
+  select(`Question #1`:`Question #6`) %>%
+  mutate(across(everything(), ~ factor(.x, levels = c("Strongly Disagree", "Disagree", "Agree", "Strongly Agree")))) %>%
+  tbl_likert(
+        label = list(
+  `Question #1` ~ question_labels[1],  
+  `Question #2` ~ question_labels[2],
+  `Question #3` ~ question_labels[3],
+  `Question #4` ~ question_labels[4],
+  `Question #5` ~ question_labels[5],
+  `Question #6` ~ question_labels[6]
+  )) %>% add_n()
+```
+
+
+```{r}
+survey_data %>%
+  select(`Question #7`) %>%
+  mutate(across(everything(), ~ factor(.x))) %>%
+  tbl_likert(
+    label = list(
+  `Question #7` ~ question_labels[7]
+  )) %>% add_n()
+```
+
+
+```{r}
+survey_data %>%
+  select(`Question #8`) %>%
+  gt::gt()
+```

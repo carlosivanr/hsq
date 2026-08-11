@@ -1,0 +1,332 @@
+---
+title: "HSQ - Baseline Characteristics Quantitative Measures (draft)"
+date: today
+
+format: 
+  docx:
+    reference-doc: "D:\\custom-reference-doc.docx"
+    toc: true
+
+execute: 
+  echo: false
+  warning: false
+---
+
+
+```{r}
+#| eval: false
+# -----------------------------------------------------------------------------
+# Carlos Rodriguez, PhD. CU Anschutz Dept. of Family Medicine
+
+# Date: 10/23/2025
+
+# Description: This script is designed to tabulate the quantitative measures 
+# for the HSQ baseline characteristics manuscript
+
+# Inputs: Requires .csv files in the analyses_sas folder. The .csv files are
+# created from various scripts such as the primary outcomes completion report,
+# prepare_network_data.qmd, and the NJH dev_prep_data.py scripts.
+
+# Relies on custom functions in the 
+# [dfm_tb](https://github.com/carlosivanr/dfm_tb) package
+
+# Save to the following drive
+# "Z:\Shared\DFM\HSQ_Shared\Analysis\Stat Working\Baseline Paper"
+# -----------------------------------------------------------------------------
+```
+
+
+```{r}
+# Load libraries
+library(tidyverse)
+library(magrittr, include = "%<>%")
+library(gtsummary)
+library(dfmtbx)
+```
+
+
+# RedCap Participant Management Project Data
+```{r}
+# Reads a .csv file created from the primary outcomes completion report
+hsq <- read_csv("C:\\Users\\rodrica2\\OneDrive - The University of Colorado Denver\\Documents\\DFM\\projects\\hsq\\analyses_sas\\data\\hsq_data.csv", show_col_types = FALSE)
+
+# Filter to baseline only
+hsq %<>%
+  filter(event_name == "0mo")
+```
+
+
+## Demographics
+```{r}
+hsq %>% 
+  mutate(Hispanic = eth,
+         Arm = arm,
+         Gender = gender,
+         Age = age) %>%
+  select(Arm, Age, Gender, Hispanic, Race) %>%
+  tbl_summary(by = Arm,
+    statistic = list(Age ~ "{mean} ({sd})"),
+    digits = list(
+      all_categorical() ~ c(0,1), # The first value is for the n, and the second value for the %
+      all_continuous() ~ c(2,2))  # the first value is for mean, the second value is for sd
+  ) %>%
+  add_overall() %>%
+  add_p(
+    test = list(Age ~ "t.test"),
+    test.args = list(Age ~ list(var.equal = TRUE)),
+    pvalue_fun = label_style_pvalue(digits = 3)
+  )
+```
+
+{{< pagebreak >}}
+
+```{r}
+# Sum se1 through se5 as subscale from Jim Cunningham's work https://www.sciencedirect.com/science/article/pii/S2212962614000583
+```
+
+## Scored psychological measures
+- PHQ4 (psy_score)
+- PHQ4 depression subscore (dep_score)
+- PHQ4 anxiety subscore (anx_score)
+- Abstinence Related Motivational Engagement (arme_score)
+- Proactive Coping Scale (pcs_score)
+- Treatment Self Regulation Questionnaire
+  - Autonomous motivation (factor 1, tsrq_auto)
+  - Introjected regulation (factor 2, tsrq_intr)
+  - External regulation (factor 3, tsrq_extr)
+  - Amotivation (factor 4, tsrq_amot)
+- Self efficacy (se_confidence) *** needs confirmation on scoring
+- Residual attraction to smoking (cd_attraction)
+- Continuing smoker self-label (cd_smoker)
+- Vulnerable to smoking relapse (cd_vulnerable)
+
+```{r}
+# Create two vectors of the continuous and binary variables from the 
+# psychological instruments
+cont_vars <- c("psy_score", "dep_score", "anx_score", "arme_score", 
+               "pcs_score", "tsrq_auto", "tsrq_intr", "tsrq_extr", 
+               "tsrq_amot", "se_confidence")
+
+bin_vars <- c("cd_attraction", "cd_smoker", "cd_vulnerable")
+```
+
+```{r}
+psy_tab <- hsq %>%
+  select(arm, all_of(cont_vars), all_of(bin_vars)) %>%
+  tbl_summary(
+    by = arm,
+    type = list(all_of(cont_vars)  ~ "continuous"),
+    statistic = list(all_of(cont_vars) ~ "{mean} ({sd}), [{min}; {median}; {max}]"),
+    digits = list(
+      all_categorical() ~ c(0,1), # The first value is for the n, and the second value for the %
+      all_continuous() ~ c(2,2)),  # the first value is for mean, the second value is for sd
+    missing = "ifany",
+    label = list(
+      psy_score = "PHQ4 (PHQ2 + GAD2)",
+      dep_score = "PHQ2 (depresion)",
+      anx_score = "GAD2 (anxiety)",
+      arme_score = "Abstinence Related Motivational Engagement",
+      pcs_score = "Proactive Coping Scale",
+      tsrq_auto = "TSRQ Autonomous Motivation",
+      tsrq_extr = "TSRQ External Regulation",
+      tsrq_intr = "TSRQ Introjected Regulation",
+      tsrq_amot = "TSRQ Amotivation",
+      cd_attraction = "CD Residual attraction",
+      cd_smoker = "CD Continuing smoker self-label",
+      cd_vulnerable = "CD Vulnerable to smoking relapse",
+      se_confidence = "Self Efficacy (CAM RTTI)")) %>%
+  add_overall() %>%
+  add_p(pvalue_fun = label_style_pvalue(digits = 3))
+  # add_p(
+  #   test = list(all_continuous() ~ "t.test"),
+  #   test.args = all_continuous() ~ list(var.equal = TRUE))
+```
+
+```{r}
+psy_tab
+```
+
+{{< pagebreak >}}
+
+
+## SE Questions
+```{r}
+se_qs <- c("se6", "se7", "se8", "se9", "se10", "se11", "se12")
+```
+
+
+```{r}
+# Gave error on se8 for some reason
+hsq %>%
+  select(arm, all_of(se_qs)) %>%
+  mutate(across(all_of(se_qs), ~ factor(.x, levels = c(
+    "Very sure I am able to", 
+    "Usually sure I am able to", 
+    "Somewhat sure I am able to", 
+    "Neutral",  
+    "Somewhat not sure I am able to",
+    "Usually not sure I am able to",
+    "Not at all sure I am able to",
+    "Prefer not to answer" 
+    )))) %>%
+  tbl_summary(
+    by = arm,
+    digits = all_categorical() ~ c(0,1),
+    label = list(
+      se6 = "Are you able to keep thinking of the pros of quitting when you feel like smoking?",
+      se7 = "Are you able to coach yourself 'I want to quit' or 'I won't give up'?",
+      se8 = "Are you able to keep thinking of the cons of smoking when you feel like smoking?",
+      se9 = "Are you able to ask the people around you to support your quit attempt?",
+      se10 = "Are you able to tell smokers you have quit smoking when you are at a party?",
+      se11 = "Are you able to anticipate situations in which it might be difficult to refrain from smoking?",
+      se12 = "Are you able to divert yourself when you feel like smoking?"
+    )) %>%
+  add_overall() %>%
+  add_p(test.args = all_categorical() ~ list(workspace = 2e7),
+        pvalue_fun = label_style_pvalue(digits = 3))           
+
+```
+
+```{r}
+#| eval: false
+hsq %>% 
+  filter(arm == "Control") %>%
+  select(tsrq_extr) %>%
+  ggplot(., aes(x = tsrq_extr)) +
+  geom_histogram()
+```
+
+```{r}
+#| eval: false
+hsq %>% 
+  filter(arm != "Control") %>%
+  select(tsrq_extr) %>%
+  ggplot(., aes(y = tsrq_extr)) +
+  geom_boxplot()
+```
+
+```{r}
+#| eval: false
+hsq %>% 
+  select(tsrq_extr, arm) %>%
+  ggplot(., aes(y = tsrq_extr, x = arm)) +
+  geom_boxplot()
+```
+
+## Social Network Metrics
+```{r}
+pna <- read_csv(
+  "C:\\Users\\rodrica2\\OneDrive - The University of Colorado Denver\\Documents\\DFM\\projects\\hsq\\analyses_sas\\data\\hsq_network_data.csv", 
+  show_col_types = FALSE) %>%
+  filter(event_name == "0mo")
+```
+
+```{r}
+pna %>%
+  select(arm, density, n_components, homophily_gender, homophily_age_cat, btw_centr, deg_centr) %>% 
+  tbl_summary(
+    by = arm,
+    stat = list(
+      density ~ "{mean} ({sd}), [{min}; {median}; {max}]",
+      homophily_gender ~ "{mean} ({sd}), [{min}; {median}; {max}]",
+      homophily_age_cat ~ "{mean} ({sd}), [{min}; {median}; {max}]",
+      btw_centr ~ "{mean} ({sd}), [{min}; {median}; {max}]",
+      deg_centr ~ "{mean} ({sd}), [{min}; {median}; {max}]",
+      n_components ~ "{mean} ({sd}), [{min}; {median}; {max}]"
+    ),
+    label = list(
+      density = "Density",
+      n_components = "Number of components",
+      btw_centr = "Betweenness centralization",
+      deg_centr = "Degree centralization",
+      homophily_gender = "homophily (gender)",
+      homophily_age_cat = "homophily (age)"
+    )
+  ) %>%
+  add_overall() %>%
+  add_p(
+    test = everything() ~ "wilcox.test",
+    pvalue_fun = label_style_pvalue(digits = 3))
+```
+
+<!-- # NJH Data -->
+<!-- !!! Variable preparation can be found in the srnd.qmd document, just copy and paste from there!!! -->
+```{r}
+njh <- read_csv("C:\\Users\\rodrica2\\OneDrive - The University of Colorado Denver\\Documents\\DFM\\projects\\hsq\\analyses_sas\\data\\njh_data_20260219.csv", show_col_types = FALSE)
+```
+
+```{r}
+# Dependence by psychological measures
+
+# Dependence is captured as a categorical meaures in the NJH data(SI 9)
+
+# Pyschological variables include the ARME and the TSRQ
+# The ARME is a continuous measure after its scored
+
+# The TSRQ has 4 sub domains, that are continuous as well
+```
+
+```{r}
+# Data prep to order factors for these columns that are specific to each tbco type.
+how_soon_cols <- njh %>%
+  select(
+    "SI 9",
+    "OI 9-3",
+    # "OI 9-2", # References Pipe but not in data
+    "OI 9-1",
+    "OI 9-4",
+    "OI 9-5") %>%
+  names()
+
+njh %<>%
+  mutate(across(all_of(how_soon_cols), ~ factor(.x, levels = c(
+    "Within five minutes",
+    "6 to 30 minutes",
+    "31 to 60 minutes",
+    "More than 60 minutes",
+    "Don't know",
+    "Refused"))))
+```
+
+```{r}
+# Merge hsq and njh data
+hsq <- hsq %>%
+  left_join(njh, by = c("hsqid" = "Hsqid"))
+```
+
+```{r}
+# The SI 9 column has branching logic to only those that responded Yes to "Smoke Cigarettes"
+hsq %>% 
+  select(tsrq_auto:tsrq_amot, `SI 9`) %>%
+  drop_na(`SI 9`) %>%
+  tbl_summary(by = `SI 9`) %>%
+  add_overall()
+```
+
+
+```{r}
+hsq %>% 
+  select(arme_score, `SI 9`) %>%
+  drop_na(`SI 9`) %>%
+  tbl_summary(,
+    by = `SI 9`,
+    statistic = list(everything() ~ "{mean} ({sd}), [{min}; {median}; {max}]")) %>%
+  add_overall()
+```
+
+
+```{r}
+hsq %>% 
+  select(arme_score, `SI 9`, arm) %>%
+  drop_na(`SI 9`) %>%
+  tbl_strata(
+  strata = arm,
+  .tbl_fun = 
+    ~ .x %>%
+    tbl_summary(
+      by = `SI 9`,
+      statistic = list(
+        everything() ~ "{mean} ({sd}), [{min}; {median}; {max}]")) %>%
+    add_overall()
+  )
+```
