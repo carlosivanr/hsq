@@ -75,6 +75,14 @@ get_hsq_data <- function() {
   survey_0mo %<>%
     mutate(event_name = "0mo")
 
+  # Stay quit options change after 3mo, change the baseline (0mo) instead of 
+  # changing 3mo, 6mo, 9mo, and 12mo separately.
+  survey_0mo %<>%
+    rename(
+      stay_quit_method____1 = stay_quit_method___10,
+      stay_quit_method____66 = stay_quit_method___9)
+
+
 
   ############################## Survey_3mo ####################################
   # Set the report id to the 3 month report
@@ -89,7 +97,7 @@ get_hsq_data <- function() {
   # Set the names of the columns where the 3mo suffix has been removed
   names_to_replace <- sub("_3m", "", names(survey_3mo))
 
-  # Replace the names of the columns to match baseline
+  # Replace the names of the columns to remove the "_*m" indicator
   colnames(survey_3mo) <- names_to_replace
 
   # Set event name
@@ -112,7 +120,7 @@ get_hsq_data <- function() {
   # Set the names of the columns where the 3mo suffix has been removed
   names_to_replace <- sub("_6m", "", names(survey_6mo))
 
-  # Replace the names of the columns to match baseline
+  # Replace the names of the columns to remove the "_*m" indicator
   colnames(survey_6mo) <- names_to_replace
 
   # Set event name
@@ -146,7 +154,7 @@ get_hsq_data <- function() {
   # Set the names of the columns where the 3mo suffix has been removed
   names_to_replace <- sub("_9m", "", names(survey_9mo))
 
-  # Replace the names of the columns to match baseline
+  # Replace the names of the columns to remove the "_*m" indicator
   colnames(survey_9mo) <- names_to_replace
 
   # Set event name
@@ -179,7 +187,7 @@ get_hsq_data <- function() {
   # Set the names of the columns where the 3mo suffix has been removed
   names_to_replace <- sub("_12m", "", names(survey_12mo))
 
-  # Replace the names of the columns to match baseline
+  # Replace the names of the columns to remove the "_*m" indicator
   colnames(survey_12mo) <- names_to_replace
 
   # convert all of the *_ne columns to character to facilitate bind_rows()
