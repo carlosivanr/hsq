@@ -30,6 +30,42 @@ source(here("scripts/functions/get_hsq_data.R" ))
 # and represents the entire data set in the primary HSQ RedCap project
 data <- get_hsq_data()
 
+# Set which participants died and which one formally withdrew from the study.
+data %<>%
+  mutate(reported_death = ifelse(hsqid %in% c(91098, 100450, 11009, 10573), 1, 0))
+
+# Set which participants formally withdrew from the study.
+withdrew_ids <- c(
+10252,
+80564,
+11018,
+11068,
+80296,
+10845,
+10017,
+10429,
+90946,
+30393,
+10108,
+10292,
+60238,
+41058,
+50637,
+30987,
+11014,
+100456,
+60235,
+10304,
+40404,
+50568,
+10194,
+60809)
+
+
+data %>%
+  filter(hsqid_old %in% withdrew_ids) %>%
+  distinct(hsqid_old)
+
 # Create a combined list of data frames that have been filtered by a length of
 # time. Patients who were recently randomized, may have baseline survey data 
 # available, but may not have been in the study long enough to receive a follow
