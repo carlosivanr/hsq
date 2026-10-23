@@ -61,8 +61,6 @@ run;
   smoke1_SMS_by_12mo_jy
 ;
 
-/* %let dv = smoke1_SMS_by_3mo_jy; */
-
 %macro fit_unadjusted_models;
 %do i = 1 %to %sysfunc(countw(&dvs));
   %let dv = %scan(&dvs, &i);
@@ -71,7 +69,7 @@ run;
   proc sql;
       create table temp as
       select a.*,
-          b.&dv.
+             b.&dv.
       from jun.bldat_0726 as a
       left join jun.outcome_analysis100826 as b
       on a.hsqid = b.hsqid;
@@ -138,11 +136,6 @@ run;
     LGBT_jy
   ;
 
-  /* %let pvar = rate_complete;
-     %let pvar = rate_complete_SMS;
-     %let pvar = rate_complete_MSurvey;
-  */
-
   %do j = 1 %to %sysfunc(countw(&pvars));
     %let pvar = %scan(&pvars, &j);
 
@@ -160,21 +153,16 @@ run;
 
     %if &pvar_type. = C %then %do;
       /* ------------------Categorical predictor work flow------------------ */
-      
-      /* Drop rows where values of "99: Unknown" are present */      
-      proc sql;
-        create table temp as
-        select *
-        from temp
-        where &pvar. ne "99: Unknown";
-      quit;
-
       ods output
         /* ParameterEstimates=_pe */
         ModelANOVA=_pe
       ;
 
+      /* Drop rows where values of "99: Unknown" are present. This needs to 
+      occur on each iteration of a categorical variable. */
       proc logistic data=temp;
+        where &pvar. ne "99: Unknown";
+
         %if &pvar_type. = C %then %do;
           class &pvar.;
         %end;
@@ -200,7 +188,6 @@ run;
     %end;
     %else %if &pvar_type. = N %then %do;
       /* -------------------Numerical predictor workflow------------------- */
-
       ods output
         ParameterEstimates=_pe
         OddsRatios=_or
@@ -221,7 +208,6 @@ run;
       from _PE 
       where not (Variable = "Intercept");
     quit;
-
 
     /* Combine the sub tables */
     proc sql;
@@ -300,11 +286,6 @@ run;
   12mo
 ;
 
- /* 
-%let dv = smoke1_SMS_by_3mo_jy;
-%let event = 3mo;
-*/
-
 %macro fit_unadjusted_n_hcs_models;
 %do i = 1 %to %sysfunc(countw(&dvs));
   %let dv = %scan(&dvs, &i);
@@ -324,7 +305,7 @@ run;
   proc sql;
     create table temp as
     select a.*,
-        b.sum_hc
+           b.sum_hc
     from jun.outcome_analysis100826 as a
     left join n_hcs as b
     on a.hsqid = b.hsqid;
@@ -350,7 +331,6 @@ run;
     from _PE 
     where Variable = "sum_hc";
   quit;
-
 
   /* Combine the sub tables */
   proc sql;
