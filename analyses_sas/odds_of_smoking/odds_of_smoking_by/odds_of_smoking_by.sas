@@ -35,12 +35,21 @@ libname jun "Z:/Shared/DFM/HSQ_Shared/Analysis/Stat Working/Datasets";
 
 /* Create a table where the number of characters is predefined */
 data num_unadjusted;
-    length Effect $20;
+    length Effect $20
+           DV $16
+           ProbChiSq 8
+           OddsRatioEst 8
+           LowerCL 8
+           UpperCL 8;
+    format ProbChiSq pvalue6.4;
     stop;
 run;
 
 data cat_unadjusted;
-    length Effect $20;
+    length Effect $20
+           DV $16
+           ProbChiSq 8;
+    format ProbChiSq pvalue6.4;
     stop;
 run;
 
@@ -52,7 +61,7 @@ run;
   smoke1_SMS_by_12mo_jy
 ;
 
-/* %let dv = smoke1_SMS_by_3mo_jy */
+/* %let dv = smoke1_SMS_by_3mo_jy; */
 
 %macro fit_unadjusted_models;
 %do i = 1 %to %sysfunc(countw(&dvs));
@@ -128,8 +137,10 @@ run;
     SQM10_None_jy
     LGBT_jy
   ;
-  /* %let pvar = Wake4_SI9_jy;
-     %let pvar = anx_score;
+
+  /* %let pvar = rate_complete;
+     %let pvar = rate_complete_SMS;
+     %let pvar = rate_complete_MSurvey;
   */
 
   %do j = 1 %to %sysfunc(countw(&pvars));
@@ -150,12 +161,14 @@ run;
     %if &pvar_type. = C %then %do;
       /* ------------------Categorical predictor work flow------------------ */
       
-      /* Drop rows where values of "99: Unknown" are present */
-      data temp;
-          set temp;
-          if vvalue(&pvar.) ne "99: Unknown";
-      run;
-      
+      /* Drop rows where values of "99: Unknown" are present */      
+      proc sql;
+        create table temp as
+        select *
+        from temp
+        where &pvar. ne "99: Unknown";
+      quit;
+
       ods output
         /* ParameterEstimates=_pe */
         ModelANOVA=_pe
@@ -206,7 +219,7 @@ run;
         "&dv." as DV,
         ProbChiSq
       from _PE 
-      where Variable = "&pvar.";
+      where not (Variable = "Intercept");
     quit;
 
 
@@ -368,3 +381,14 @@ proc export data=n_hcs_results
     dbms=csv
     replace;
 run;
+
+/* Count and % Relapse */
+proc freq data=jun.outcome_analysis100826;
+    tables
+      smoke1_SMS_by_3mo_jy
+      smoke1_SMS_by_6mo_jy
+      smoke1_SMS_by_9mo_jy
+      smoke1_SMS_by_12mo_jy
+        / missing;
+run;
+
