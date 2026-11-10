@@ -29,6 +29,17 @@ Outcome file = outcome_analysis100826
 and the outcomes data. */
 libname jun "Z:/Shared/DFM/HSQ_Shared/Analysis/Stat Working/Datasets";
 
+/* Due to a coding bug, tsrq_amot is invalid in the BLDAT_0726 file. This code
+chunk loads the correct values as tsrq_amot_score*/
+%let root = C:/Users/rodrica2/OneDrive - The University of Colorado Denver/Documents/DFM/projects/hsq/analyses_sas;
+
+proc import datafile="&root./odds_of_smoking/odds_of_smoking_by/tsrq_amot_score_CR.csv"
+    out = tsrq_amot_score
+    dbms=csv
+    replace;
+run;
+
+
 /* ///////////////////////////////////////////////////////////////////////// */
 /* /////////////////////////// Unadjusted Models /////////////////////////// */
 /* ///////////////////////////////////////////////////////////////////////// */
@@ -65,6 +76,7 @@ run;
 %do i = 1 %to %sysfunc(countw(&dvs));
   %let dv = %scan(&dvs, &i);
 
+  /* %let dv = smoke1_SMS_by_3mo_jy; */
   /* Merge the two data sets */
   proc sql;
       create table temp as
@@ -74,12 +86,24 @@ run;
       left join jun.outcome_analysis100826 as b
       on a.hsqid = b.hsqid;
   quit;
+
+  /* Merge in the correct tsrq_amot_score */
+  proc sql;
+  create table temp as
+      select a.*,
+             b.tsrq_amot_score
+      from temp as a
+      left join tsrq_amot_score as b
+      on a.hsqid = b.hsqid;
+  quit;
+
   
   /* Loop through the variables */
+  /* tsrq_amot_score is loaded from a separate file */
   %let pvars = 
     anx_score
     dep_score
-    tsrq_amot
+    tsrq_amot_score
     density
     n_components
     btw_centr
@@ -139,6 +163,7 @@ run;
   %do j = 1 %to %sysfunc(countw(&pvars));
     %let pvar = %scan(&pvars, &j);
 
+    /* %let pvar = LGBT_jy; */
     /* Display in the log output the variable */
     %put &=pvar;
     
@@ -150,9 +175,17 @@ run;
 
     /* Display the data type of the predictor variable */
     %put &=pvar_type;
+    /* %let pvar_type = C; */
 
     %if &pvar_type. = C %then %do;
       /* ------------------Categorical predictor work flow------------------ */
+
+      /* Model setting 99: Unknown to missing */
+      /* Jun asked to change 99:Unknown to "" */
+      data temp;
+        set temp;
+        if &pvar. = "99: Unknown" then &pvar. = "";
+      run;
       ods output
         /* ParameterEstimates=_pe */
         ModelANOVA=_pe
@@ -161,7 +194,7 @@ run;
       /* Drop rows where values of "99: Unknown" are present. This needs to 
       occur on each iteration of a categorical variable. */
       proc logistic data=temp;
-        where &pvar. ne "99: Unknown";
+        /* where &pvar. ne "99: Unknown"; Commented per Jun's request */
 
         %if &pvar_type. = C %then %do;
           class &pvar.;
@@ -223,11 +256,13 @@ run;
         ;
     quit;
 
-    %end;
-
-  /* Append to a master table  */
+    /* Append to a master table  */
     proc append base=num_unadjusted data= sub_tab_2 force;
     run;
+
+    %end;
+
+
 
   %end;
 
@@ -238,8 +273,6 @@ run;
 %fit_unadjusted_models;
 
 /* Output to .csv files */
-%let root = C:/Users/rodrica2/OneDrive - The University of Colorado Denver/Documents/DFM/projects/hsq/analyses_sas;
-
 proc export data=CAT_UNADJUSTED
     outfile="&root./odds_of_smoking/odds_of_smoking_by/cat_unadjusted.csv"
     dbms=csv
